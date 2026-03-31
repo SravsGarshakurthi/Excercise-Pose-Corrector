@@ -504,10 +504,10 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
             {/* FORM CHECKLIST */}
             {exercise.checklist?.length > 0 && (
               <div style={{ marginBottom:"36px" }}>
-                <h2 style={{ margin:"0 0 16px", fontSize:"20px", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>✅ Form Checklist</h2>
+                <h2 style={{ margin:"0 0 16px", fontSize:"20px", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>Form Checklist</h2>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
                   {exercise.checklist.map((tip, i) => (
-                    <div key={i} style={{ padding:"16px 18px", background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(34,197,94,0.06)", border: theme === "light" ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(34,197,94,0.15)", borderRadius:"12px" }}>
+                    <div key={i} style={{ padding:"16px 18px", background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(34,197,94,0.06)", border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(34,197,94,0.15)", borderRadius:"12px" }}>
                       <span style={{ fontSize:"14px", color: theme === "light" ? "#0f172a" : "rgba(255,255,255,0.75)", lineHeight:1.6 }}>{tip}</span>
                     </div>
                   ))}
@@ -658,12 +658,12 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                   <div style={{ flex:"1 1 240px", minWidth:"240px", display:"flex", flexDirection:"column", gap:"12px" }}>
                     <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"15px", color: theme === "light" ? "#0f172a" : "#e2e8f0" }}>💡 Tips for Best Results</p>
                     {[
-                      { icon:"💪", title:"Warm up first", desc:"Spend 5 minutes warming up before any session to prevent injuries." },
-                      { icon:"📸", title:"Good lighting", desc:"Make sure your full body is visible and well-lit for best AI tracking." },
-                      { icon:"👟", title:"Wear fitted clothes", desc:"Fitted clothing helps the AI detect your joints more accurately." },
-                      { icon:"📏", title:"Stand back", desc:"Keep 5–8 feet of distance from the camera for full body detection." },
+                      { icon:"💪", title:"Warm up first", desc:"Spend 5 minutes warming up before any session to prevent injuries.", color:"#6366f1" },
+                      { icon:"📸", title:"Good lighting", desc:"Make sure your full body is visible and well-lit for best AI tracking.", color:"#06b6d4" },
+                      { icon:"👟", title:"Wear fitted clothes", desc:"Fitted clothing helps the AI detect your joints more accurately.", color:"#eab308" },
+                      { icon:"📏", title:"Stand back", desc:"Keep 5–8 feet of distance from the camera for full body detection.", color:"#ef4444" },
                     ].map((tip, i) => (
-                      <div key={i} style={{ background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)", border: theme === "light" ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.1)", borderRadius:"12px", padding:"16px", flex:1 }}>
+                      <div key={i} style={{ background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)", border: `1px solid ${tip.color}80`, borderRadius:"12px", padding:"16px", flex:1 }}>
                         <span style={{ fontSize:"22px", display:"block", marginBottom:"8px" }}>{tip.icon}</span>
                         <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"13px", color: theme === "light" ? "#0f172a" : "#e2e8f0" }}>{tip.title}</p>
                         <p style={{ margin:0, fontSize:"12px", color: theme === "light" ? "#475569" : "#94a3b8", lineHeight:"1.5" }}>{tip.desc}</p>

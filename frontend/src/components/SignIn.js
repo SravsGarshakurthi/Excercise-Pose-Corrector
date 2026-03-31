@@ -97,7 +97,7 @@ export default function SignIn({ onNavigate }) {
             {features.map((f, i) => (
               <div key={i} className="si-feature" style={{
                 background: isLight ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.04)",
-                border: isLight ? "1px solid rgba(99,102,241,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                border: isLight ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.06)",
               }}>
                 <span className="si-feature-icon">{f.icon}</span>
                 <div>
@@ -110,7 +110,7 @@ export default function SignIn({ onNavigate }) {
 
           <div className="si-stats" style={{
             background: isLight ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.04)",
-            border: isLight ? "1px solid rgba(99,102,241,0.15)" : "1px solid rgba(255,255,255,0.07)",
+            border: isLight ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
           }}>
             {[["6+", "Exercises"], ["AI", "Powered"], ["Live", "Feedback"], ["Free", "To Use"]].map(([num, label], i) => (
               <React.Fragment key={i}>
@@ -146,9 +146,9 @@ export default function SignIn({ onNavigate }) {
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com" autoComplete="email"
                   className="si-input si-input--icon"
-                  style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(0,0,0,0.12)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
+                  style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(30,64,175,0.55)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
                   onFocus={e => e.target.style.borderColor = '#7c3aed'}
-                  onBlur={e => e.target.style.borderColor = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'} />
+                  onBlur={e => e.target.style.borderColor = isLight ? 'rgba(30,64,175,0.55)' : 'rgba(255,255,255,0.1)'} />
               </div>
             </div>
 
@@ -159,9 +159,9 @@ export default function SignIn({ onNavigate }) {
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="Enter your password" autoComplete="current-password"
                   className="si-input si-input--icon si-input--icon-right"
-                  style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(0,0,0,0.12)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
+                  style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(30,64,175,0.55)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
                   onFocus={e => e.target.style.borderColor = '#7c3aed'}
-                  onBlur={e => e.target.style.borderColor = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'} />
+                  onBlur={e => e.target.style.borderColor = isLight ? 'rgba(30,64,175,0.55)' : 'rgba(255,255,255,0.1)'} />
                 <button type="button" onClick={() => setShowPassword(v => !v)} className="si-eye-btn">
                   {showPassword ? "🙈" : "👁️"}
                 </button>

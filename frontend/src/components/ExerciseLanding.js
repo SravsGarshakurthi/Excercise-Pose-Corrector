@@ -219,7 +219,7 @@ export default function ExerciseLanding({ onNavigate }) {
                 padding: "20px",
                 background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.03)",
                 borderRadius: "14px",
-                border: theme === "light" ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.06)",
+                border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.06)",
               }}>
                 <div style={{ fontSize: "24px", marginBottom: "10px" }}>{t.icon}</div>
                 <div style={{ fontSize: "15px", fontWeight: "600", color: theme === "light" ? "#0f172a" : "white", marginBottom: "6px" }}>{t.title}</div>

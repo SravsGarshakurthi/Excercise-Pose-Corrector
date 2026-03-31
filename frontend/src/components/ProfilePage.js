@@ -141,7 +141,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
             <div style={{
               background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
               borderRadius: 20, padding: isMobile ? "20px 16px" : "28px",
-              border: theme === "light" ? "1px solid rgba(0,0,0,0.06)" : "1px solid rgba(255,255,255,0.07)",
+              border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
               boxShadow: theme === "light" ? "0 2px 16px rgba(0,0,0,0.08)" : "none",
               marginBottom: 20,
             }}>
@@ -179,10 +179,10 @@ fetch(`/api/chart-data?user_id=${userId}`)
                   { label: "Weight", value: weight, setter: setWeight, unit: "lb",  icon: "⚖️" },
                 ].map((field) => (
                   <div key={field.label} style={{
-                    background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.05)", borderRadius: 12, border: theme === "light" ? "1px solid rgba(0,0,0,0.06)" : "1px solid rgba(255,255,255,0.07)",
+                    background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.05)", borderRadius: 12, border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
                     padding: isMobile ? "12px 10px" : "14px 16px",
                     display: "flex", flexDirection: "column", gap: 6,
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.08)",
                   }}>
                     <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       {field.label}
@@ -222,7 +222,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
                   return bmi ? (
                     <div style={{
                       background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.08)",
                       borderRadius: 12,
                       padding: isMobile ? "12px 10px" : "14px 16px",
                       display: "flex", flexDirection: "column", gap: 6,
@@ -273,7 +273,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
               <div style={{
                 background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
                 borderRadius: 16, padding: "24px",
               }}>
                 <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Recent Workouts</h3>
@@ -305,7 +305,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
 
               <div style={{
                 background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
                 borderRadius: 16, padding: "24px",
               }}>
                 <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>This Week</h3>
