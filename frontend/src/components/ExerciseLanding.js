@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import useTheme from "../useTheme";
 import { EXERCISES } from "../data/exercises";
 import * as api from "../api";
 
@@ -57,22 +58,23 @@ export default function ExerciseLanding({ onNavigate }) {
   const welcomeName = displayName
     ? displayName.charAt(0).toUpperCase() + displayName.slice(1)
     : "Guest";
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div style={{
       minHeight: "100vh", width: "100%",
-      background: "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
+      background: theme === "light" ? "linear-gradient(180deg, #dbeafe, #bfdbfe)" : "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
       fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-      color: "#e6f7f9", display: "flex", flexDirection: "column",
+      color: theme === "light" ? "#0f172a" : "#e6f7f9", display: "flex", flexDirection: "column",
     }}>
 
       {/* TOP NAV */}
       <header style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "14px clamp(14px, 4vw, 32px)",
-        background: "rgba(15,23,42,0.85)",
+        background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.85)",
         backdropFilter: "blur(12px)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        borderBottom: theme === "light" ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.06)",
         flexShrink: 0,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -83,20 +85,20 @@ export default function ExerciseLanding({ onNavigate }) {
             fontWeight: "700", fontSize: "14px", color: "white",
             boxShadow: "0 4px 14px rgba(124,58,237,0.3)",
           }}>PC</div>
-          <span style={{ fontWeight: "600", fontSize: "16px", color: "#e6f7f9" }}>Pose Corrector AI</span>
+          <span style={{ fontWeight: "600", fontSize: "16px", color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Pose Corrector AI</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <button
             type="button"
             onClick={() => onNavigate("profile")}
-            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: "7px 14px" }}
+            style={{ background: "none", border: "none", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: "7px 14px" }}
           >Profile</button>
-          <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)" }}>👤 {welcomeName}</span>
+          <span style={{ fontSize: "14px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)" }}>👤 {welcomeName}</span>
+<button onClick={toggleTheme} className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
           <button
             type="button"
             onClick={handleSignOut}
-            style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "rgba(255,255,255,0.6)", fontSize: "14px", padding: "7px 14px", cursor: "pointer" }}
-          >Sign out</button>
+            className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px" }}>Sign out</button>
         </div>
       </header>
 
@@ -109,10 +111,12 @@ export default function ExerciseLanding({ onNavigate }) {
         <div style={{ marginBottom: "36px" }}>
           <h1 style={{
             margin: "0 0 8px", fontSize: "clamp(22px, 5vw, 36px)", fontWeight: "800",
-            background: "linear-gradient(135deg, #e6f7f9, #bcd4d9)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            color: theme === "light" ? "#0f172a" : "transparent",
+            background: theme === "light" ? "none" : "linear-gradient(135deg, #e6f7f9, #bcd4d9)",
+            WebkitBackgroundClip: theme === "light" ? "unset" : "text",
+            WebkitTextFillColor: theme === "light" ? "#0f172a" : "transparent",
           }}>Welcome back, {welcomeName}! 👋</h1>
-          <p style={{ margin: 0, fontSize: "17px", color: "rgba(255,255,255,0.45)" }}>
+          <p style={{ margin: 0, fontSize: "17px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.45)" }}>
             Choose an exercise below and let's get moving.
           </p>
         </div>
@@ -130,15 +134,16 @@ export default function ExerciseLanding({ onNavigate }) {
           ].map((s, i) => (
             <div key={i} style={{
               padding: "18px 20px",
-              background: "rgba(255,255,255,0.04)",
+              background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
               borderRadius: "14px",
               border: `1px solid ${s.color}80`,
+              boxShadow: theme === "light" ? "0 2px 12px rgba(0,0,0,0.08)" : "none",
               display: "flex", alignItems: "center", gap: "14px",
             }}>
               <span style={{ fontSize: "26px" }}>{s.icon}</span>
               <div>
                 <div style={{ fontSize: "20px", fontWeight: "700", color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>{s.label}</div>
+                <div style={{ fontSize: "12px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", marginTop: "2px" }}>{s.label}</div>
               </div>
             </div>
           ))}
@@ -146,7 +151,7 @@ export default function ExerciseLanding({ onNavigate }) {
 
         {/* SECTION TITLE */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: "white" }}>Choose Your Exercise</h2>
+          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: theme === "light" ? "#0f172a" : "white" }}>Choose Your Exercise</h2>
           
         </div>
 
@@ -169,9 +174,10 @@ export default function ExerciseLanding({ onNavigate }) {
                   display: "flex", flexDirection: "column",
                   alignItems: "center", justifyContent: "center",
                   gap: "0px", padding: "0px", overflow: "hidden",
-                  background: isHovered ? c.color : "rgba(255,255,255,0.04)",
+                  background: isHovered ? c.color : theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
                   borderRadius: "18px",
-                  border: `1px solid ${isHovered ? c.border : "rgba(255,255,255,0.08)"}`,
+                  border: `1px solid ${isHovered ? c.border : theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
+                  boxShadow: theme === "light" && !isHovered ? "0 2px 12px rgba(0,0,0,0.08)" : isHovered ? `0 16px 40px ${c.shadow}` : "none",
                   color: "#e6f7f9", cursor: "pointer",
                   transition: "all 0.2s ease",
                   transform: isHovered ? "translateY(-4px)" : "none",
@@ -194,8 +200,8 @@ export default function ExerciseLanding({ onNavigate }) {
 
               </button>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "16px", fontWeight: "700", color: "white" }}>{ex.name}</div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>{ex.short}</div>
+                <div style={{ fontSize: "16px", fontWeight: "700", color: theme === "light" ? "#0f172a" : "white" }}>{ex.name}</div>
+                <div style={{ fontSize: "12px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.5)", marginTop: "3px" }}>{ex.short}</div>
               </div>
               </div>
             );
@@ -204,20 +210,20 @@ export default function ExerciseLanding({ onNavigate }) {
 
         {/* TIPS SECTION */}
         <div>
-          <h2 style={{ margin: "0 0 20px", fontSize: "20px", fontWeight: "700", color: "white" }}>
-            💡 Tips for Best Results
+          <h2 style={{ margin: "0 0 20px", fontSize: "20px", fontWeight: "700", color: theme === "light" ? "#0f172a" : "white" }}>
+            💡 <span style={{ color: theme === "light" ? "#0f172a" : "inherit" }}>Tips for Best Results</span>
           </h2>
           <div className="landing-tips-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
             {tips.map((t, i) => (
               <div key={i} style={{
                 padding: "20px",
-                background: "rgba(255,255,255,0.03)",
+                background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.03)",
                 borderRadius: "14px",
-                border: "1px solid rgba(255,255,255,0.06)",
+                border: theme === "light" ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.06)",
               }}>
                 <div style={{ fontSize: "24px", marginBottom: "10px" }}>{t.icon}</div>
-                <div style={{ fontSize: "15px", fontWeight: "600", color: "white", marginBottom: "6px" }}>{t.title}</div>
-                <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>{t.desc}</div>
+                <div style={{ fontSize: "15px", fontWeight: "600", color: theme === "light" ? "#0f172a" : "white", marginBottom: "6px" }}>{t.title}</div>
+                <div style={{ fontSize: "13px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>{t.desc}</div>
               </div>
             ))}
           </div>
