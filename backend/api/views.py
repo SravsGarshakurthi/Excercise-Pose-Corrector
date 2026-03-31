@@ -3228,6 +3228,28 @@ def chart_data(request):
         ).order_by("ended_at")
 
         data = {}
+        # Weekly duration: sum minutes per day per exercise
+        from datetime import datetime as dt
+        week_start = dt.now(PST).date() - td(days=dt.now(PST).weekday())
+        weekly_dur = {}
+        all_week_sessions = Session.objects.filter(
+            user_id=int(user_id),
+            ended_at__isnull=False,
+            started_at__isnull=False,
+            ended_at__date__gte=week_start
+        )
+        day_labels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        for s in all_week_sessions:
+            day_idx = s.ended_at.astimezone(PST).weekday()
+            day = day_labels[day_idx]
+            dur_sec = (s.ended_at - s.started_at).total_seconds()
+            dur_min = round(dur_sec / 60, 1)
+            if day not in weekly_dur:
+                weekly_dur[day] = 0
+            weekly_dur[day] = round(weekly_dur[day] + dur_min, 1)
+
+        weekly_duration = [{"day": d, "minutes": weekly_dur.get(d, 0)} for d in day_labels]
+
         for s in sessions:
             ex = s.exercise_type
             date_str = s.ended_at.astimezone(PST).strftime("%b %d")
@@ -3238,6 +3260,6 @@ def chart_data(request):
                 "accuracy": float(s.avg_accuracy)
             })
 
-        return JsonResponse({"chartData": data})
+        return JsonResponse({"chartData": data, "weeklyDuration": weekly_duration})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)

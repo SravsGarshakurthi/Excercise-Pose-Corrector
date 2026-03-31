@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import useTheme from "../useTheme";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
 
 const weekDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -12,6 +12,7 @@ const EXERCISE_ICONS = {
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [weeklyDuration, setWeeklyDuration] = useState([]);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", handler);
@@ -32,6 +33,7 @@ export default function ProfilePage({ onNavigate }) {
   const [selectedEx, setSelectedEx] = useState("");
   const isMobile = useIsMobile();
   const { theme, toggleTheme } = useTheme();
+  const [weeklyDuration, setWeeklyDuration] = useState([]);
 
   const userId = localStorage.getItem("pc_demo_user_id");
   const userName = localStorage.getItem("pc_demo_username") || localStorage.getItem("pc_demo_email") || "User";
@@ -41,7 +43,7 @@ export default function ProfilePage({ onNavigate }) {
     if (!userId) { setLoading(false); setError("Not logged in"); return; }
 fetch(`/api/chart-data?user_id=${userId}`)
       .then(r => r.json())
-      .then(data => { if (data.chartData) setChartData(data.chartData); })
+      .then(data => { if (data.chartData) setChartData(data.chartData); if (data.weeklyDuration) setWeeklyDuration(data.weeklyDuration); })
       .catch(() => {});
     fetch(`/api/profile?user_id=${userId}`)
       .then(r => r.json())
@@ -331,7 +333,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
                 const points = chartData[selEx] || [];
                 const color = COLORS[selEx] || "#7c3aed";
                 return (
-                  <div style={{ marginTop: 48, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 28 }}>
+                  <div style={{ marginTop: 64, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 32 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
                       <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Accuracy Over Time</h3>
                       <select value={selEx} onChange={e => setSelectedEx(e.target.value)} style={{ background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.08)", border: theme === "light" ? "1px solid rgba(0,0,0,0.15)" : "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: theme === "light" ? "#0f172a" : "#e6f7f9", padding: "5px 10px", fontSize: 12, cursor: "pointer", outline: "none" }}>
@@ -350,6 +352,38 @@ fetch(`/api/chart-data?user_id=${userId}`)
                   </div>
                 );
               })()}
+
+              {/* Weekly Duration Bar Chart */}
+              {weeklyDuration.some(d => d.minutes > 0) && (
+                <div style={{ marginTop: 36, borderTop: `1px solid ${theme === "light" ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`, paddingTop: 28 }}>
+                  <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>
+                    ⏱ Weekly Exercise Duration
+                  </h3>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <BarChart data={weeklyDuration} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme === "light" ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.06)"} />
+                      <XAxis dataKey="day" tick={{ fill: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", fontSize: 11 }} />
+                      <YAxis tick={{ fill: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", fontSize: 10 }} unit="m" />
+                      <Tooltip
+                        contentStyle={{ background: theme === "light" ? "#fff" : "#0f172a", border: "1px solid rgba(124,58,237,0.3)", borderRadius: 8, fontSize: 11 }}
+                        labelStyle={{ color: theme === "light" ? "#0f172a" : "#e6f7f9" }}
+                        formatter={(val) => [val + " min", "Duration"]}
+                      />
+                      <Bar dataKey="minutes" radius={[6, 6, 0, 0]}>
+                        {weeklyDuration.map((entry, index) => (
+                          <Cell key={index} fill={entry.minutes > 0 ? "url(#durationGrad)" : (theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.06)")} />
+                        ))}
+                      </Bar>
+                      <defs>
+                        <linearGradient id="durationGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#7c3aed" />
+                          <stop offset="100%" stopColor="#06b6d4" />
+                        </linearGradient>
+                      </defs>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               </div>
             </div>
           </>
