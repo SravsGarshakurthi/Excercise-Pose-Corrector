@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 const CACHE_NAME = 'pose-corrector-v4';
+=======
+const CACHE_NAME = 'pose-corrector-v2';
+>>>>>>> 66834cdf0937d435e227494e1115d640f173a464
 const urlsToCache = [
   '/',
   '/index.html',

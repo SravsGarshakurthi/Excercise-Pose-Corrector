@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import useTheme from "../useTheme";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
 
 const weekDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -10,6 +12,7 @@ const EXERCISE_ICONS = {
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [weeklyDuration, setWeeklyDuration] = useState([]);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", handler);
@@ -26,7 +29,11 @@ export default function ProfilePage({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saveMsg, setSaveMsg] = useState("");
+  const [chartData, setChartData] = useState({});
+  const [selectedEx, setSelectedEx] = useState("");
   const isMobile = useIsMobile();
+  const { theme, toggleTheme } = useTheme();
+  const [weeklyDuration, setWeeklyDuration] = useState([]);
 
   const userId = localStorage.getItem("pc_demo_user_id");
   const userName = localStorage.getItem("pc_demo_username") || localStorage.getItem("pc_demo_email") || "User";
@@ -34,6 +41,10 @@ export default function ProfilePage({ onNavigate }) {
 
   useEffect(() => {
     if (!userId) { setLoading(false); setError("Not logged in"); return; }
+fetch(`/api/chart-data?user_id=${userId}`)
+      .then(r => r.json())
+      .then(data => { if (data.chartData) setChartData(data.chartData); if (data.weeklyDuration) setWeeklyDuration(data.weeklyDuration); })
+      .catch(() => {});
     fetch(`/api/profile?user_id=${userId}`)
       .then(r => r.json())
       .then(data => {
@@ -80,14 +91,14 @@ export default function ProfilePage({ onNavigate }) {
   return (
     <div style={{
       minHeight: "100vh", width: "100%",
-      background: "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
+      background: theme === "light" ? "linear-gradient(180deg, #dbeafe, #bfdbfe)" : "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
       fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-      color: "#e6f7f9",
+      color: theme === "light" ? "#0f172a" : "#e6f7f9",
     }}>
       <header style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: isMobile ? "12px 16px" : "14px 32px",
-        background: "rgba(15,23,42,0.85)",
+        background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.85)",
         backdropFilter: "blur(12px)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
       }}>
@@ -99,14 +110,15 @@ export default function ProfilePage({ onNavigate }) {
             fontWeight: "700", fontSize: "14px", color: "white",
             boxShadow: "0 4px 14px rgba(124,58,237,0.3)",
           }}>PC</div>
-          <span style={{ fontWeight: "600", fontSize: "16px", color: "#e6f7f9" }}>Pose Corrector AI</span>
+          <span style={{ fontWeight: "600", fontSize: "16px", color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Pose Corrector AI</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
           <button type="button"
             onClick={() => onNavigate ? onNavigate("dashboard") : (window.location.hash = "dashboard")}
-            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: isMobile ? "6px 8px" : "7px 14px" }}
+            style={{ background: "none", border: "none", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: isMobile ? "6px 8px" : "7px 14px" }}
           >← Back</button>
-          <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)" }}>👤 {displayName}</span>
+          <span style={{ fontSize: "14px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)" }}>👤 {displayName}</span>
+          <button type="button" onClick={toggleTheme} className="su-theme-btn" style={{ fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "5px 10px" : "7px 14px" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
           <button type="button"
             onClick={() => {
               localStorage.removeItem("pc_demo_email");
@@ -114,7 +126,7 @@ export default function ProfilePage({ onNavigate }) {
               localStorage.removeItem("pc_demo_user_id");
               onNavigate ? onNavigate("signin") : (window.location.hash = "signin");
             }}
-            style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "rgba(255,255,255,0.6)", fontSize: isMobile ? 12 : 14, padding: isMobile ? "5px 10px" : "7px 14px", cursor: "pointer" }}
+            className="su-theme-btn" style={{ fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "5px 10px" : "7px 14px" }}
           >Sign out</button>
         </div>
       </header>
@@ -127,9 +139,10 @@ export default function ProfilePage({ onNavigate }) {
         {!loading && !error && (
           <>
             <div style={{
-              background: "rgba(255,255,255,0.04)",
+              background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
               borderRadius: 20, padding: isMobile ? "20px 16px" : "28px",
-              border: "1px solid rgba(255,255,255,0.07)",
+              border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
+              boxShadow: theme === "light" ? "0 2px 16px rgba(0,0,0,0.08)" : "none",
               marginBottom: 20,
             }}>
               {/* Avatar + name row */}
@@ -148,7 +161,7 @@ export default function ProfilePage({ onNavigate }) {
                   boxShadow: "0 0 24px rgba(124,58,237,0.4)",
                 }}>{displayName.charAt(0).toUpperCase()}</div>
                 <div style={{ flex: 1 }}>
-                  <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 700, color: "#e6f7f9", lineHeight: 1.2 }}>{displayName}</h1>
+                  <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9", lineHeight: 1.2 }}>{displayName}</h1>
                   <p style={{ margin: "5px 0 2px", opacity: 0.45, fontSize: 13 }}>
                     {localStorage.getItem("pc_demo_email") || ""}
                   </p>
@@ -159,20 +172,20 @@ export default function ProfilePage({ onNavigate }) {
               </div>
 
               {/* Age / Height / Weight */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 16 }}>
                 {[
                   { label: "Age",    value: age,    setter: setAge,    unit: "yrs", icon: "🎂" },
-                  { label: "Height", value: height, setter: setHeight, unit: "in",  icon: "📏" },
+                  { label: "Height", value: height, setter: setHeight, unit: "ft",  icon: "📏" },
                   { label: "Weight", value: weight, setter: setWeight, unit: "lb",  icon: "⚖️" },
                 ].map((field) => (
                   <div key={field.label} style={{
-                    background: "rgba(255,255,255,0.05)", borderRadius: 12,
+                    background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.05)", borderRadius: 12, border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
                     padding: isMobile ? "12px 10px" : "14px 16px",
                     display: "flex", flexDirection: "column", gap: 6,
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.08)",
                   }}>
                     <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                      {field.icon} {field.label}
+                      {field.label}
                     </span>
                     {editing ? (
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
@@ -181,7 +194,7 @@ export default function ProfilePage({ onNavigate }) {
                           style={{
                             background: "transparent", border: "none",
                             borderBottom: "1px solid rgba(255,255,255,0.35)",
-                            color: "#e6f7f9", fontSize: isMobile ? 17 : 20, fontWeight: 700,
+                            color: theme === "light" ? "#0f172a" : "#e6f7f9", fontSize: isMobile ? 17 : 20, fontWeight: 700,
                             padding: "2px 0", outline: "none", width: isMobile ? "44px" : "60px",
                           }}
                         />
@@ -189,7 +202,7 @@ export default function ProfilePage({ onNavigate }) {
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                        <span style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: "#e6f7f9" }}>
+                        <span style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>
                           {field.value || "—"}
                         </span>
                         {field.value && <span style={{ fontSize: 11, opacity: 0.5 }}>{field.unit}</span>}
@@ -197,6 +210,31 @@ export default function ProfilePage({ onNavigate }) {
                     )}
                   </div>
                 ))}
+
+                {/* BMI as 4th card inside the grid */}
+                {height && weight && (() => {
+                  const heightIn = parseFloat(height) * 12;
+                  const weightLb = parseFloat(weight);
+                  const bmiRaw = (weightLb / (heightIn * heightIn)) * 703;
+                  const bmi = bmiRaw > 0 ? bmiRaw.toFixed(1) : null;
+                  const bmiCategory = !bmi ? "" : bmiRaw < 18.5 ? "Underweight" : bmiRaw < 25 ? "Normal" : bmiRaw < 30 ? "Overweight" : "Obese";
+                  const bmiColor = !bmi ? "#e6f7f9" : bmiRaw < 18.5 ? "#06b6d4" : bmiRaw < 25 ? "#22c55e" : bmiRaw < 30 ? "#eab308" : "#ef4444";
+                  return bmi ? (
+                    <div style={{
+                      background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.05)",
+                      border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 12,
+                      padding: isMobile ? "12px 10px" : "14px 16px",
+                      display: "flex", flexDirection: "column", gap: 6,
+                    }}>
+                      <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em" }}>BMI</span>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                        <span style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>{bmi}</span>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: bmiColor }}>{bmiCategory}</span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
               {/* Edit / Save button - below stats */}
@@ -217,7 +255,7 @@ export default function ProfilePage({ onNavigate }) {
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 12 : 16, marginBottom: 20 }}>
               {stats.map(s => (
                 <div key={s.label} style={{
-                  background: "rgba(255,255,255,0.04)",
+                  background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
                   border: `1px solid ${s.color}80`,
                   borderRadius: 16, padding: "20px",
                   display: "flex", alignItems: "center", gap: "16px",
@@ -225,19 +263,20 @@ export default function ProfilePage({ onNavigate }) {
                   <span style={{ fontSize: "32px" }}>{s.icon}</span>
                   <div>
                     <div style={{ fontSize: "28px", fontWeight: "800", color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>{s.label}</div>
+                    <div style={{ fontSize: "13px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", marginTop: "2px" }}>{s.label}</div>
                   </div>
                 </div>
               ))}
             </div>
 
+
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
               <div style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
+                border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
                 borderRadius: 16, padding: "24px",
               }}>
-                <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "#e6f7f9" }}>Recent Workouts</h3>
+                <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Recent Workouts</h3>
                 {recentWorkouts.length === 0 ? (
                   <div style={{ opacity: 0.5, fontSize: 14, textAlign: "center", padding: "20px 0" }}>No workouts yet — start exercising! 💪</div>
                 ) : (
@@ -245,7 +284,7 @@ export default function ProfilePage({ onNavigate }) {
                     {recentWorkouts.map((w, i) => (
                       <div key={i} style={{
                         display: "flex", alignItems: "center", gap: 12,
-                        background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 14px",
+                        background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 14px",
                         border: "1px solid rgba(255,255,255,0.05)",
                       }}>
                         <span style={{ fontSize: 22 }}>{EXERCISE_ICONS[w.exercise_type] || "🏋️"}</span>
@@ -265,17 +304,17 @@ export default function ProfilePage({ onNavigate }) {
               </div>
 
               <div style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
+                border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
                 borderRadius: 16, padding: "24px",
               }}>
-                <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: "#e6f7f9" }}>This Week</h3>
+                <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>This Week</h3>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   {weekDayLabels.map((day, i) => (
                     <div key={day} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                       <div style={{
                         width: 34, height: 34, borderRadius: "50%",
-                        background: weeklyActivity[i] ? "linear-gradient(135deg, #7c3aed, #06b6d4)" : "rgba(255,255,255,0.06)",
+                        background: weeklyActivity[i] ? "linear-gradient(135deg, #7c3aed, #06b6d4)" : theme === "light" ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.06)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 13, fontWeight: 700,
                         boxShadow: weeklyActivity[i] ? "0 0 10px rgba(124,58,237,0.4)" : "none"
@@ -285,6 +324,66 @@ export default function ProfilePage({ onNavigate }) {
                   ))}
                 </div>
 
+              {/* Accuracy Chart */}
+              {Object.keys(chartData).length > 0 && (() => {
+                const COLORS = { bicep_curl: "#7c3aed", squat: "#06b6d4", lunge: "#22c55e", push_up: "#f59e0b", plank: "#ef4444", tree_pose: "#ec4899" };
+                const LABELS = { bicep_curl: "Bicep Curl", squat: "Squat", lunge: "Lunge", push_up: "Push Up", plank: "Plank", tree_pose: "Tree Pose" };
+                const exercises = Object.keys(chartData);
+                const selEx = selectedEx && chartData[selectedEx] ? selectedEx : exercises[0];
+                const points = chartData[selEx] || [];
+                const color = COLORS[selEx] || "#7c3aed";
+                return (
+                  <div style={{ marginTop: 64, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 32 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Accuracy Over Time</h3>
+                      <select value={selEx} onChange={e => setSelectedEx(e.target.value)} style={{ background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.08)", border: theme === "light" ? "1px solid rgba(0,0,0,0.15)" : "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: theme === "light" ? "#0f172a" : "#e6f7f9", padding: "5px 10px", fontSize: 12, cursor: "pointer", outline: "none" }}>
+                        {exercises.map(ex => <option key={ex} value={ex} style={{ background: "#0f172a" }}>{LABELS[ex] || ex}</option>)}
+                      </select>
+                    </div>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <LineChart data={points} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={theme === "light" ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.06)"} />
+                        <XAxis dataKey="date" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }} />
+                        <YAxis domain={[0, 100]} tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }} unit="%" />
+                        <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} labelStyle={{ color: "#e6f7f9" }} formatter={(val) => [val + "%", "Accuracy"]} />
+                        <Line type="monotone" dataKey="accuracy" stroke={color} strokeWidth={2.5} dot={{ fill: color, r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
+
+              {/* Weekly Duration Bar Chart */}
+              {weeklyDuration.some(d => d.minutes > 0) && (
+                <div style={{ marginTop: 36, borderTop: `1px solid ${theme === "light" ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`, paddingTop: 28 }}>
+                  <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>
+                    ⏱ Weekly Exercise Duration
+                  </h3>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <BarChart data={weeklyDuration} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme === "light" ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.06)"} />
+                      <XAxis dataKey="day" tick={{ fill: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", fontSize: 11 }} />
+                      <YAxis tick={{ fill: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", fontSize: 10 }} unit="m" />
+                      <Tooltip
+                        contentStyle={{ background: theme === "light" ? "#fff" : "#0f172a", border: "1px solid rgba(124,58,237,0.3)", borderRadius: 8, fontSize: 11 }}
+                        labelStyle={{ color: theme === "light" ? "#0f172a" : "#e6f7f9" }}
+                        formatter={(val) => [val + " min", "Duration"]}
+                      />
+                      <Bar dataKey="minutes" radius={[6, 6, 0, 0]}>
+                        {weeklyDuration.map((entry, index) => (
+                          <Cell key={index} fill={entry.minutes > 0 ? "url(#durationGrad)" : (theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.06)")} />
+                        ))}
+                      </Bar>
+                      <defs>
+                        <linearGradient id="durationGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#7c3aed" />
+                          <stop offset="100%" stopColor="#06b6d4" />
+                        </linearGradient>
+                      </defs>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               </div>
             </div>
           </>

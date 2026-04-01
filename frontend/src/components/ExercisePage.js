@@ -264,12 +264,16 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                     }
                   }
                   if (data.accuracy) repAccuraciesRef.current.push(data.accuracy);
+<<<<<<< HEAD
                   if (data.counter !== undefined && data.counter !== null && data.counter > maxCounterRef.current) {
                     maxCounterRef.current = data.counter;
                     if (exerciseId !== "plank" && exerciseId !== "tree-pose") {
                       announce("Rep " + data.counter);
                     }
                   }
+=======
+                  if (data.counter !== undefined && data.counter !== null && data.counter > maxCounterRef.current) maxCounterRef.current = data.counter;
+>>>>>>> 66834cdf0937d435e227494e1115d640f173a464
                 }
               }).catch(() => {});
             }

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import * as api from "../api";
+import useTheme from "../useTheme";
 
 export default function SignIn({ onNavigate }) {
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -49,84 +51,73 @@ export default function SignIn({ onNavigate }) {
     { icon: "💪", title: "6+ Exercises", desc: "Squats, planks, curls, lunges and more" },
   ];
 
+  const isLight = theme === "light";
+
   return (
-    <div style={{
-      minHeight: "100vh", width: "100vw",
-      background: "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.12), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.08), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
-      display: "flex", alignItems: "stretch", flexWrap: "wrap",
-      fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-      color: "#e6f7f9", overflowX: "hidden", margin: 0, padding: 0,
+    <>
+    <button onClick={toggleTheme} className="su-theme-btn" style={{ position: "fixed", top: "16px", right: "16px", zIndex: 1000 }}>
+      {isLight ? "🌙 Dark Mode" : "☀️ Light Mode"}
+    </button>
+    <div className="si-wrap" style={{
+      background: isLight
+        ? "linear-gradient(180deg, #e0f2fe, #bae6fd)"
+        : "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.12), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.08), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
+      color: isLight ? "#0f172a" : "#e6f7f9",
     }}>
 
-      {/* ── LEFT PANEL ── */}
-      <div style={{
-        flex: "1 1 300px",
-        background: "linear-gradient(145deg, rgba(124,58,237,0.3), rgba(6,182,212,0.1))",
-        borderRight: "1px solid rgba(255,255,255,0.07)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "clamp(32px, 6vw, 60px) clamp(24px, 6vw, 56px)", minHeight: "auto",
+      {/* LEFT PANEL */}
+      <div className="si-left" style={{
+        background: isLight
+          ? "linear-gradient(145deg, rgba(124,58,237,0.08), rgba(6,182,212,0.04))"
+          : "linear-gradient(145deg, rgba(124,58,237,0.3), rgba(6,182,212,0.1))",
+        borderRight: isLight ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.07)",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "28px", maxWidth: "480px", width: "100%" }}>
-
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
-            <div style={{
-              width: "72px", height: "72px", borderRadius: "18px",
-              background: "linear-gradient(135deg, #7c3aed, #06b6d4)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: "800", fontSize: "26px", color: "white",
-              boxShadow: "0 8px 30px rgba(124,58,237,0.4)", flexShrink: 0,
-            }}>PC</div>
+        <div className="si-left-inner">
+          <div className="si-logo-row">
+            <div className="si-logo-box">PC</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: "clamp(18px, 4vw, 26px)", fontWeight: "700", color: "white" }}>Pose Corrector AI</h1>
-              <p style={{ margin: "5px 0 0", fontSize: "16px", color: "rgba(255,255,255,0.5)" }}>
+              <h1 className="si-app-name" style={{ color: isLight ? "#0f172a" : "white" }}>Pose Corrector AI</h1>
+              <p className="si-app-sub" style={{ color: isLight ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)" }}>
                 Exercise form feedback — smarter, safer, stronger!
               </p>
             </div>
           </div>
 
-          {/* Tagline */}
           <div>
-            <h2 style={{ margin: "0 0 12px", fontSize: "clamp(26px, 5vw, 38px)", fontWeight: "800", color: "white", lineHeight: 1.2 }}>
+            <h2 className="si-tagline" style={{ color: isLight ? "#0f172a" : "white" }}>
               Train smarter,<br />
-              <span style={{ background: "linear-gradient(90deg, #7c3aed, #06b6d4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                not harder.
-              </span>
+              <span className="si-tagline-gradient">not harder.</span>
             </h2>
-            <p style={{ margin: 0, fontSize: "17px", color: "rgba(255,255,255,0.5)", lineHeight: 1.7 }}>
+            <p className="si-tagline-sub" style={{ color: isLight ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)" }}>
               Get real-time AI feedback on your workout form and prevent injuries before they happen.
             </p>
           </div>
 
-          {/* Features */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div className="si-features">
             {features.map((f, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "flex-start", gap: "16px",
-                padding: "16px 20px", background: "rgba(255,255,255,0.04)",
-                borderRadius: "14px", border: "1px solid rgba(255,255,255,0.06)",
+              <div key={i} className="si-feature" style={{
+                background: isLight ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.04)",
+                border: isLight ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.06)",
               }}>
-                <span style={{ fontSize: "26px", flexShrink: 0, marginTop: "2px" }}>{f.icon}</span>
+                <span className="si-feature-icon">{f.icon}</span>
                 <div>
-                  <div style={{ fontSize: "17px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: "4px" }}>{f.title}</div>
-                  <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>{f.desc}</div>
+                  <div className="si-feature-title" style={{ color: isLight ? "#0f172a" : "rgba(255,255,255,0.9)" }}>{f.title}</div>
+                  <div className="si-feature-desc" style={{ color: isLight ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.45)" }}>{f.desc}</div>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Stats */}
-          <div style={{
-            display: "flex", alignItems: "center", padding: "20px 24px",
-            background: "rgba(255,255,255,0.04)", borderRadius: "14px",
-            border: "1px solid rgba(255,255,255,0.07)",
+          <div className="si-stats" style={{
+            background: isLight ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.04)",
+            border: isLight ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.07)",
           }}>
             {[["6+", "Exercises"], ["AI", "Powered"], ["Live", "Feedback"], ["Free", "To Use"]].map(([num, label], i) => (
               <React.Fragment key={i}>
-                {i > 0 && <div style={{ width: "1px", height: "38px", background: "rgba(255,255,255,0.08)", margin: "0 16px" }} />}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-                  <span style={{ fontSize: "22px", fontWeight: "700", color: "#06b6d4" }}>{num}</span>
-                  <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.35)", marginTop: "3px" }}>{label}</span>
+                {i > 0 && <div className="si-stat-divider" style={{ background: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)" }} />}
+                <div className="si-stat">
+                  <span className="si-stat-num">{num}</span>
+                  <span className="si-stat-label" style={{ color: isLight ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.35)" }}>{label}</span>
                 </div>
               </React.Fragment>
             ))}
@@ -134,90 +125,79 @@ export default function SignIn({ onNavigate }) {
         </div>
       </div>
 
-      {/* ── RIGHT PANEL ── */}
-      <div style={{
-        flex: "1 1 300px", background: "rgba(11,18,33,0.98)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "clamp(32px, 6vw, 60px) clamp(24px, 6vw, 56px)", minHeight: "auto",
+      {/* RIGHT PANEL */}
+      <div className="si-right" style={{
+        background: isLight ? "#ffffff" : "rgba(11,18,33,0.98)",
       }}>
-        <div style={{ width: "100%", maxWidth: "440px" }}>
+        <div className="si-right-inner">
 
-          <div style={{ marginBottom: "40px" }}>
-            <h2 style={{ margin: "0 0 10px", fontSize: "36px", fontWeight: "700", color: "white" }}>Welcome back 👋</h2>
-            <p style={{ margin: 0, fontSize: "17px", color: "rgba(255,255,255,0.4)" }}>
+          <div className="si-welcome">
+            <h2 className="si-welcome-title" style={{ color: isLight ? "#0f172a" : "white" }}>Welcome back 👋</h2>
+            <p className="si-welcome-sub" style={{ color: isLight ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.4)" }}>
               Sign in to continue your fitness journey
             </p>
           </div>
 
-          <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-
-            {/* Email */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label style={{ fontSize: "15px", fontWeight: "600", color: "rgba(255,255,255,0.7)" }}>Email address</label>
+          <form onSubmit={submit} className="si-form">
+            <div className="si-field">
+              <label className="si-label" style={{ color: isLight ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)" }}>Email address</label>
               <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "18px" }}>✉️</span>
+                <span className="si-field-icon">✉️</span>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com" autoComplete="email"
-                  style={{ width: "100%", padding: "15px 16px 15px 50px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "white", fontSize: "16px", outline: "none", boxSizing: "border-box" }}
+                  className="si-input si-input--icon"
+                  style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(30,64,175,0.55)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
                   onFocus={e => e.target.style.borderColor = '#7c3aed'}
-                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
+                  onBlur={e => e.target.style.borderColor = isLight ? 'rgba(30,64,175,0.55)' : 'rgba(255,255,255,0.1)'} />
               </div>
             </div>
 
-            {/* Password */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label style={{ fontSize: "15px", fontWeight: "600", color: "rgba(255,255,255,0.7)" }}>Password</label>
+            <div className="si-field">
+              <label className="si-label" style={{ color: isLight ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)" }}>Password</label>
               <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "18px" }}>🔒</span>
+                <span className="si-field-icon">🔒</span>
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="Enter your password" autoComplete="current-password"
-                  style={{ width: "100%", padding: "15px 50px 15px 50px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "white", fontSize: "16px", outline: "none", boxSizing: "border-box" }}
+                  className="si-input si-input--icon si-input--icon-right"
+                  style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(30,64,175,0.55)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
                   onFocus={e => e.target.style.borderColor = '#7c3aed'}
-                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
-                <button type="button" onClick={() => setShowPassword(v => !v)} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "20px" }}>
+                  onBlur={e => e.target.style.borderColor = isLight ? 'rgba(30,64,175,0.55)' : 'rgba(255,255,255,0.1)'} />
+                <button type="button" onClick={() => setShowPassword(v => !v)} className="si-eye-btn">
                   {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
             </div>
 
-            {/* Remember + Forgot */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+            <div className="si-remember-row">
+              <label className="si-remember">
                 <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
                   style={{ width: "17px", height: "17px", accentColor: "#7c3aed" }} />
-                <span style={{ fontSize: "15px", color: "rgba(255,255,255,0.55)" }}>Remember me</span>
+                <span style={{ color: isLight ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)" }}>Remember me</span>
               </label>
-              <button type="button" style={{ background: "none", border: "none", color: "#06b6d4", fontSize: "15px", cursor: "pointer", padding: 0, textDecoration: "underline" }}
-                onClick={() => onNavigate("reset-password")}>Forgot password?</button>
+              <button type="button" className="si-forgot" onClick={() => onNavigate("reset-password")}>Forgot password?</button>
             </div>
 
-            {/* Error */}
             {error && (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "12px", color: "#fca5a5", fontSize: "15px" }}>
-                ⚠️ {error}
-              </div>
+              <div className="su-alert su-alert--error">⚠️ {error}</div>
             )}
 
-            {/* Submit */}
-            <button type="submit" disabled={isLoading} style={{ width: "100%", padding: "17px", background: "linear-gradient(135deg, #7c3aed, #06b6d4)", border: "none", borderRadius: "12px", color: "white", fontSize: "18px", fontWeight: "700", cursor: "pointer", opacity: isLoading ? 0.7 : 1 }}>
+            <button type="submit" disabled={isLoading} className="su-btn-primary" style={{ opacity: isLoading ? 0.7 : 1 }}>
               {isLoading ? "Signing in..." : "Sign In →"}
             </button>
 
-            {/* Divider */}
-            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-              <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.07)" }} />
-              <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.25)" }}>New here?</span>
-              <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.07)" }} />
+            <div className="su-divider">
+              <span className="su-divider-line" style={{ background: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.07)" }} />
+              <span className="su-divider-text" style={{ color: isLight ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.25)" }}>New here?</span>
+              <span className="su-divider-line" style={{ background: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.07)" }} />
             </div>
 
-            {/* Create account */}
-            <button type="button" onClick={() => onNavigate("signup")} style={{ width: "100%", padding: "15px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "rgba(255,255,255,0.75)", fontSize: "17px", fontWeight: "600", cursor: "pointer" }}>
+            <button type="button" onClick={() => onNavigate("signup")} className="su-btn-secondary">
               Create an account
             </button>
-
           </form>
         </div>
       </div>
     </div>
+    </>
   );
 }
