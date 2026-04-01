@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import useTheme from "../useTheme";
 import { EXERCISES, getExerciseById } from "../data/exercises";
 import * as api from "../api";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
@@ -46,6 +47,19 @@ function drawPoseOnCanvas(canvas, video, landmarks, postureOk) {
   }
 }
 
+const LANDMARK_ALPHA = 0.35;
+const CORRECT_STABLE_MS = 450;
+
+function emaLandmarks(prev, next) {
+  if (!prev || prev.length !== next.length) return next;
+  return next.map((lm, i) => ({
+    x: prev[i].x * (1 - LANDMARK_ALPHA) + lm.x * LANDMARK_ALPHA,
+    y: prev[i].y * (1 - LANDMARK_ALPHA) + lm.y * LANDMARK_ALPHA,
+    z: prev[i].z * (1 - LANDMARK_ALPHA) + lm.z * LANDMARK_ALPHA,
+    visibility: lm.visibility,
+  }));
+}
+
 const difficultyStyle = {
   Beginner:     { bg: "rgba(34,197,94,0.15)",  border: "rgba(34,197,94,0.4)",  text: "#4ade80" },
   Intermediate: { bg: "rgba(245,158,11,0.15)", border: "rgba(245,158,11,0.4)", text: "#fbbf24" },
@@ -76,26 +90,72 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
   const lastSpokenRef = useRef("");
   const lastSpokenTimeRef = useRef(0);
   const [isMuted, setIsMuted] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   const isMutedRef = useRef(false);
 
-  function speak(text) {
+  const lastSpeakTimeRef = useRef(0);
+  const synthKeepAliveRef = useRef(null);
+
+  function speak(text, priority = false) {
     if (isMutedRef.current) return;
     const now = Date.now();
-    if (text === lastSpokenRef.current && now - lastSpokenTimeRef.current < 4000) return;
+    const GAP = priority ? 2000 : 7000;
+    if (now - lastSpeakTimeRef.current < GAP) return;
+    if (text === lastSpokenRef.current && now - lastSpokenTimeRef.current < 12000) return;
     lastSpokenRef.current = text;
     lastSpokenTimeRef.current = now;
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.0;
-      u.pitch = 1.0;
-      u.volume = 1.0;
-      window.speechSynthesis.speak(u);
+    lastSpeakTimeRef.current = now;
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      const preferred =
+        voices.find(v => v.lang === "en-US" && v.name.toLowerCase().includes("google")) ||
+        voices.find(v => v.lang.startsWith("en") && !v.name.toLowerCase().includes("compact")) ||
+        voices[0];
+      if (preferred) u.voice = preferred;
     }
+    if (synthKeepAliveRef.current) clearInterval(synthKeepAliveRef.current);
+    synthKeepAliveRef.current = setInterval(() => {
+      if (!window.speechSynthesis.speaking) {
+        clearInterval(synthKeepAliveRef.current);
+        synthKeepAliveRef.current = null;
+        return;
+      }
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
+    u.onend = () => {
+      if (synthKeepAliveRef.current) {
+        clearInterval(synthKeepAliveRef.current);
+        synthKeepAliveRef.current = null;
+      }
+    };
+    window.speechSynthesis.speak(u);
   }
-  const maxCounterRef = useRef(0);
+
+  function announce(text) {
+    if (isMutedRef.current) return;
+    if (!("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    window.speechSynthesis.speak(u);
+  }
+
+    const maxCounterRef = useRef(0);
+  const smoothLandmarksRef = useRef(null);
+  const stableCorrectRef = useRef(null);
+  const pendingCorrectRef = useRef(null);
+  const pendingSinceRef = useRef(0);
   const plankIntervalRef = useRef(null);
   const plankSecondsRef = useRef(0);
+  const totalPlankSecondsRef = useRef(0);
   const [plankSeconds, setPlankSeconds] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStats, setUploadStats] = useState(null);
@@ -163,7 +223,19 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
             const result = poseRef.current.detectForVideo(video, ts);
             const lms = landmarksFromPoseResult(result);
             landmarksRef.current = lms;
-            drawPoseOnCanvas(canvas, video, lms, postureOkRef.current);
+            smoothLandmarksRef.current = emaLandmarks(smoothLandmarksRef.current, lms);
+            const stableNow = Date.now();
+            const rawOk = postureOkRef.current;
+            if (rawOk === stableCorrectRef.current) {
+              pendingCorrectRef.current = null;
+            } else if (pendingCorrectRef.current !== rawOk) {
+              pendingCorrectRef.current = rawOk;
+              pendingSinceRef.current = stableNow;
+            } else if (stableNow - pendingSinceRef.current >= CORRECT_STABLE_MS) {
+              stableCorrectRef.current = rawOk;
+              pendingCorrectRef.current = null;
+            }
+            drawPoseOnCanvas(canvas, video, smoothLandmarksRef.current || lms, stableCorrectRef.current);
             const now = Date.now();
             if (lms && now - lastSendRef.current > 100) {
               lastSendRef.current = now;
@@ -178,7 +250,10 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                       if (!plankIntervalRef.current) {
                         plankIntervalRef.current = setInterval(() => {
                           plankSecondsRef.current += 1;
+                          totalPlankSecondsRef.current += 1;
                           setPlankSeconds(plankSecondsRef.current);
+                          const s = plankSecondsRef.current;
+                          announce(s === 1 ? "1 second" : s + " seconds");
                         }, 1000);
                       }
                     } else {
@@ -189,7 +264,12 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                     }
                   }
                   if (data.accuracy) repAccuraciesRef.current.push(data.accuracy);
-                  if (data.counter && data.counter > maxCounterRef.current) maxCounterRef.current = data.counter;
+                  if (data.counter !== undefined && data.counter !== null && data.counter > maxCounterRef.current) {
+                    maxCounterRef.current = data.counter;
+                    if (exerciseId !== "plank" && exerciseId !== "tree-pose") {
+                      announce("Rep " + data.counter);
+                    }
+                  }
                 }
               }).catch(() => {});
             }
@@ -216,12 +296,13 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
 
   function handleBack() {
     if (sessionIdRef.current) {
-      const reps = (exerciseId === "plank" || exerciseId === "tree-pose") ? plankSecondsRef.current : (maxCounterRef.current || (liveFeedback ? liveFeedback.counter || 0 : 0));
+      const reps = (exerciseId === "plank" || exerciseId === "tree-pose") ? totalPlankSecondsRef.current : (maxCounterRef.current || (liveFeedback ? liveFeedback.counter || 0 : 0));
       const acc = repAccuraciesRef.current.length > 0 ? Math.round(repAccuraciesRef.current.reduce((a,b) => a+b, 0) / repAccuraciesRef.current.length) : 0;
       api.endSession(sessionIdRef.current, reps, acc).catch(() => {});
       sessionIdRef.current = null;
     }
     if (stream) stream.getTracks().forEach((t) => t.stop());
+    totalPlankSecondsRef.current = 0; plankSecondsRef.current = 0;
     setMode(null); setStream(null); setUploadFile(null);
     setUploadError(""); setLiveError(""); setLiveFeedback(null);
     setAnalyzing(false); setUploadSuccess(false); setUploadResult(null);
@@ -396,27 +477,28 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
   return (
     <div style={{
       minHeight: "100vh", width: "100%",
-      background: "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
+      background: theme === "light" ? "linear-gradient(180deg, #dbeafe, #bfdbfe)" : "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
       fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
       color: "#e6f7f9", display: "flex", flexDirection: "column",
     }}>
 
       {/* TOPBAR */}
-      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 32px", background:"rgba(15,23,42,0.85)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
+      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 32px", background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.85)", backdropFilter:"blur(12px)", borderBottom: theme === "light" ? "1px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
           <div style={{ width:"40px", height:"40px", borderRadius:"10px", background:"linear-gradient(135deg,#7c3aed,#06b6d4)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"700", fontSize:"14px", color:"white", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>PC</div>
-          <span style={{ fontWeight:"600", fontSize:"16px", color:"#e6f7f9" }}>Pose Corrector AI</span>
+          <span style={{ fontWeight:"600", fontSize:"16px", color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Pose Corrector AI</span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <span style={{ fontSize:"14px", color:"rgba(255,255,255,0.5)" }}>👤 {welcomeName}</span>
-          <button type="button" onClick={handleSignOut} style={{ background:"none", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"8px", color:"rgba(255,255,255,0.6)", fontSize:"14px", padding:"7px 14px", cursor:"pointer" }}>Sign out</button>
+          <span style={{ fontSize:"14px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)" }}>👤 {welcomeName}</span>
+          <button type="button" onClick={toggleTheme} className="su-theme-btn" style={{ fontSize:"13px", padding:"7px 14px" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
+          <button type="button" onClick={handleSignOut} className="su-theme-btn" style={{ fontSize:"13px", padding:"7px 14px" }}>Sign out</button>
         </div>
       </header>
 
       <main style={{ flex:1, maxWidth:"1400px", width:"100%", margin:"0 auto", padding:"32px 48px 64px", boxSizing:"border-box" }}>
 
         {/* BACK */}
-        <button type="button" onClick={handleBack} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:"15px", cursor:"pointer", marginBottom:"24px", padding:0 }}>
+        <button type="button" onClick={handleBack} style={{ background:"none", border:"none", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.4)", fontSize:"15px", cursor:"pointer", marginBottom:"24px", padding:0 }}>
           ← Back to exercises
         </button>
 
@@ -438,7 +520,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                 />
                 <div className="exercise-image-fallback hidden">
                   <span style={{ fontSize:"5rem" }}>{exercise.emoji}</span>
-                  <p style={{ color:"rgba(255,255,255,0.5)", margin:0 }}>{exercise.name}</p>
+                  <p style={{ color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)", margin:0 }}>{exercise.name}</p>
                 </div>
               </div>
 
@@ -448,28 +530,28 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                 {/* Title + difficulty */}
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"10px", flexWrap:"wrap" }}>
-                    <h1 style={{ margin:0, fontSize:"34px", fontWeight:"800", color:"white" }}>{exercise.name}</h1>
+                    <h1 style={{ margin:0, fontSize:"34px", fontWeight:"800", color: theme === "light" ? "#0f172a" : "white" }}>{exercise.name}</h1>
                     {exercise.difficulty && (
                       <span style={{ padding:"5px 16px", borderRadius:"20px", fontSize:"13px", fontWeight:"600", background: diff.bg, border:`1px solid ${diff.border}`, color: diff.text }}>
                         {exercise.difficulty}
                       </span>
                     )}
                   </div>
-                  <p style={{ margin:0, fontSize:"16px", color:"rgba(255,255,255,0.5)", lineHeight:1.7 }}>{exercise.description}</p>
+                  <p style={{ margin:0, fontSize:"16px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)", lineHeight:1.7 }}>{exercise.description}</p>
                 </div>
 
                 {/* Quick stats */}
                 {(exercise.sets || exercise.reps || exercise.calories) && (
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"12px" }}>
                     {[
-                      { icon:"🔁", label:"Sets",     value: exercise.sets     },
-                      { icon:"⏱️", label:"Duration",  value: exercise.reps     },
-                      { icon:"🔥", label:"Calories",  value: exercise.calories },
+                      { icon:"🔁", label:"Sets",     value: exercise.sets,     color:"#6366f1" },
+                      { icon:"⏱️", label:"Duration",  value: exercise.reps,     color:"#06b6d4" },
+                      { icon:"🔥", label:"Calories",  value: exercise.calories, color:"#ef4444" },
                     ].map((s, i) => (
-                      <div key={i} style={{ padding:"14px 10px", background:"rgba(255,255,255,0.05)", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.07)", textAlign:"center" }}>
+                      <div key={i} style={{ padding:"14px 10px", background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.05)", borderRadius:"12px", border: `1px solid ${s.color}80`, textAlign:"center" }}>
                         <div style={{ fontSize:"20px", marginBottom:"6px" }}>{s.icon}</div>
-                        <div style={{ fontSize:"clamp(12px,3vw,15px)", fontWeight:"700", color:"white" }}>{s.value}</div>
-                        <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.35)", marginTop:"2px" }}>{s.label}</div>
+                        <div style={{ fontSize:"clamp(12px,3vw,15px)", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>{s.value}</div>
+                        <div style={{ fontSize:"11px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.35)", marginTop:"2px" }}>{s.label}</div>
                       </div>
                     ))}
                   </div>
@@ -478,7 +560,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                 {/* Muscles targeted */}
                 {exercise.muscles?.length > 0 && (
                   <div>
-                    <p style={{ margin:"0 0 10px", fontSize:"13px", fontWeight:"600", color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:"1px" }}>Muscles Targeted</p>
+                    <p style={{ margin:"0 0 10px", fontSize:"13px", fontWeight:"600", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:"1px" }}>Muscles Targeted</p>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"8px" }}>
                       {exercise.muscles.map((m, i) => (
                         <span key={i} style={{ padding:"5px 14px", borderRadius:"20px", fontSize:"13px", background:"rgba(6,182,212,0.12)", border:"1px solid rgba(6,182,212,0.25)", color:"#67e8f9" }}>{m}</span>
@@ -498,11 +580,11 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
             {/* FORM CHECKLIST */}
             {exercise.checklist?.length > 0 && (
               <div style={{ marginBottom:"36px" }}>
-                <h2 style={{ margin:"0 0 16px", fontSize:"20px", fontWeight:"700", color:"white" }}>✅ Form Checklist</h2>
+                <h2 style={{ margin:"0 0 16px", fontSize:"20px", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>Form Checklist</h2>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
                   {exercise.checklist.map((tip, i) => (
-                    <div key={i} style={{ padding:"16px 18px", background:"rgba(34,197,94,0.06)", border:"1px solid rgba(34,197,94,0.15)", borderRadius:"12px" }}>
-                      <span style={{ fontSize:"14px", color:"rgba(255,255,255,0.75)", lineHeight:1.6 }}>{tip}</span>
+                    <div key={i} style={{ padding:"16px 18px", background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(34,197,94,0.06)", border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(34,197,94,0.15)", borderRadius:"12px" }}>
+                      <span style={{ fontSize:"14px", color: theme === "light" ? "#0f172a" : "rgba(255,255,255,0.75)", lineHeight:1.6 }}>{tip}</span>
                     </div>
                   ))}
                 </div>
@@ -511,7 +593,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
 
             {/* PRACTICE OPTIONS */}
             <div>
-              <h2 style={{ margin:"0 0 16px", fontSize:"20px", fontWeight:"700", color:"white" }}>How do you want to practice?</h2>
+              <h2 style={{ margin:"0 0 16px", fontSize:"20px", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>How do you want to practice?</h2>
               <div className="exercise-option-cards">
                 <button type="button" className="exercise-option-card" onClick={handleLiveStart}>
                   <span className="exercise-option-icon">📹</span>
@@ -531,7 +613,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
         {/* LIVE MODE */}
         {mode === "live" && (
           <div className="exercise-live-wrap">
-            <h2 style={{ margin:"0 0 16px", fontSize:"22px", fontWeight:"700", color:"white" }}>{exercise.name} — Live</h2>
+            <h2 style={{ margin:"0 0 16px", fontSize:"22px", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>{exercise.name} — Live</h2>
             {analyzing && <p className="exercise-analyzing">⏳ Starting camera & loading pose model…</p>}
             {liveError && <p style={{ color:"#fca5a5" }}>{liveError}</p>}
             <div style={{ display:"flex", flexDirection:"row", flexWrap:"wrap", gap:"16px", alignItems:"stretch" }}>
@@ -565,17 +647,17 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                 )}
               </div>
               <div style={{ flex:"1 1 240px", minWidth:"240px", display:"flex", flexDirection:"column", gap:"12px" }}>
-                <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"15px", color:"#e2e8f0" }}>💡 Tips for Best Results</p>
+                <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"15px", color: theme === "light" ? "#0f172a" : "#e2e8f0" }}>💡 Tips for Best Results</p>
                 {[
-                  { icon:"💪", title:"Warm up first", desc:"Spend 5 minutes warming up before any session to prevent injuries." },
-                  { icon:"📸", title:"Good lighting", desc:"Make sure your full body is visible and well-lit for best AI tracking." },
-                  { icon:"👟", title:"Wear fitted clothes", desc:"Fitted clothing helps the AI detect your joints more accurately." },
-                  { icon:"📏", title:"Stand back", desc:"Keep 5–8 feet of distance from the camera for full body detection." },
+                  { icon:"💪", title:"Warm up first", desc:"Spend 5 minutes warming up before any session to prevent injuries.", color:"#6366f1" },
+                  { icon:"📸", title:"Good lighting", desc:"Make sure your full body is visible and well-lit for best AI tracking.", color:"#06b6d4" },
+                  { icon:"👟", title:"Wear fitted clothes", desc:"Fitted clothing helps the AI detect your joints more accurately.", color:"#eab308" },
+                  { icon:"📏", title:"Stand back", desc:"Keep 5–8 feet of distance from the camera for full body detection.", color:"#ef4444" },
                 ].map((tip, i) => (
-                  <div key={i} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px", padding:"16px", flex:1 }}>
+                  <div key={i} style={{ background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)", border: `1px solid ${tip.color}80`, borderRadius:"12px", padding:"16px", flex:1 }}>
                     <span style={{ fontSize:"22px", display:"block", marginBottom:"8px" }}>{tip.icon}</span>
-                    <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"13px", color:"#e2e8f0" }}>{tip.title}</p>
-                    <p style={{ margin:0, fontSize:"12px", color:"#94a3b8", lineHeight:"1.5" }}>{tip.desc}</p>
+                    <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"13px", color: theme === "light" ? "#0f172a" : "#e2e8f0" }}>{tip.title}</p>
+                    <p style={{ margin:0, fontSize:"12px", color: theme === "light" ? "#475569" : "#94a3b8", lineHeight:"1.5" }}>{tip.desc}</p>
                   </div>
                 ))}
               </div>
@@ -587,7 +669,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
         {mode === "upload" && (
           <div className="exercise-upload-wrap">
 
-            <h2 style={{ margin:"0 0 16px", fontSize:"22px", fontWeight:"700", color:"white" }}>{exercise.name} — Upload Video</h2>
+            <h2 style={{ margin:"0 0 16px", fontSize:"22px", fontWeight:"700", color: theme === "light" ? "#0f172a" : "white" }}>{exercise.name} — Upload Video</h2>
             <label className="exercise-upload-label">
               Select video file:
               <input type="file" accept="video/*" onChange={handleUploadChange} className="exercise-upload-input" />
@@ -615,7 +697,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                         {uploadResult.suggestions.map((tip, i) => (
                           <div key={i} style={{ display:"flex", gap:"8px", alignItems:"flex-start", marginBottom:"6px" }}>
                             <span style={{ color:"#06b6d4", fontWeight:"700", flexShrink:0 }}>→</span>
-                            <p style={{ margin:0, fontSize:"12px", color:"#94a3b8", lineHeight:"1.5" }}>{tip}</p>
+                            <p style={{ margin:0, fontSize:"12px", color: theme === "light" ? "#475569" : "#94a3b8", lineHeight:"1.5" }}>{tip}</p>
                           </div>
                         ))}
                       </div>
@@ -642,25 +724,25 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                       )}
                       </>
                     ) : (
-                      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.15)" }}>
+                      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color: theme === "light" ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.15)" }}>
                         <div style={{ fontSize:"64px", marginBottom:"16px" }}>🎥</div>
                         <p style={{ margin:0, fontSize:"15px" }}>Your video will appear here</p>
-                        <p style={{ margin:"6px 0 0", fontSize:"12px", color:"rgba(255,255,255,0.1)" }}>Select a file above to get started</p>
+                        <p style={{ margin:"6px 0 0", fontSize:"12px", color: theme === "light" ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.1)" }}>Select a file above to get started</p>
                       </div>
                     )}
                   </div>
                   <div style={{ flex:"1 1 240px", minWidth:"240px", display:"flex", flexDirection:"column", gap:"12px" }}>
-                    <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"15px", color:"#e2e8f0" }}>💡 Tips for Best Results</p>
+                    <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"15px", color: theme === "light" ? "#0f172a" : "#e2e8f0" }}>💡 Tips for Best Results</p>
                     {[
-                      { icon:"💪", title:"Warm up first", desc:"Spend 5 minutes warming up before any session to prevent injuries." },
-                      { icon:"📸", title:"Good lighting", desc:"Make sure your full body is visible and well-lit for best AI tracking." },
-                      { icon:"👟", title:"Wear fitted clothes", desc:"Fitted clothing helps the AI detect your joints more accurately." },
-                      { icon:"📏", title:"Stand back", desc:"Keep 5–8 feet of distance from the camera for full body detection." },
+                      { icon:"💪", title:"Warm up first", desc:"Spend 5 minutes warming up before any session to prevent injuries.", color:"#6366f1" },
+                      { icon:"📸", title:"Good lighting", desc:"Make sure your full body is visible and well-lit for best AI tracking.", color:"#06b6d4" },
+                      { icon:"👟", title:"Wear fitted clothes", desc:"Fitted clothing helps the AI detect your joints more accurately.", color:"#eab308" },
+                      { icon:"📏", title:"Stand back", desc:"Keep 5–8 feet of distance from the camera for full body detection.", color:"#ef4444" },
                     ].map((tip, i) => (
-                      <div key={i} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px", padding:"16px", flex:1 }}>
+                      <div key={i} style={{ background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)", border: `1px solid ${tip.color}80`, borderRadius:"12px", padding:"16px", flex:1 }}>
                         <span style={{ fontSize:"22px", display:"block", marginBottom:"8px" }}>{tip.icon}</span>
-                        <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"13px", color:"#e2e8f0" }}>{tip.title}</p>
-                        <p style={{ margin:0, fontSize:"12px", color:"#94a3b8", lineHeight:"1.5" }}>{tip.desc}</p>
+                        <p style={{ fontWeight:"600", margin:"0 0 4px", fontSize:"13px", color: theme === "light" ? "#0f172a" : "#e2e8f0" }}>{tip.title}</p>
+                        <p style={{ margin:0, fontSize:"12px", color: theme === "light" ? "#475569" : "#94a3b8", lineHeight:"1.5" }}>{tip.desc}</p>
                       </div>
                     ))}
                   </div>

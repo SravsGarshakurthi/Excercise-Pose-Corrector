@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pose-corrector-v2';
+const CACHE_NAME = 'pose-corrector-v4';
 const urlsToCache = [
   '/',
   '/index.html',

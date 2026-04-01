@@ -2508,19 +2508,18 @@ def stream_process(request):
             l_wrist_x = _gx("LEFT_WRIST"); r_wrist_x = _gx("RIGHT_WRIST")
             wrist_spread = abs(l_wrist_x - r_wrist_x)
             # Overhead: both wrists clearly above shoulders (y smaller = higher on screen)
-            arms_overhead = best_wrist_y < avg_shldr_y + 0.3  # world coords: y increases downward, wrists above shoulders = smaller y
-            # Prayer: wrists close together AND above hips
-            l_hip_y = _gy("LEFT_HIP"); r_hip_y = _gy("RIGHT_HIP")
-            avg_hip_y = (l_hip_y + r_hip_y) / 2
-            arms_prayer = wrist_spread < 0.20 and best_wrist_y < avg_shldr_y + 0.5
-            arms_ok = arms_overhead or arms_prayer
-            print(f"[TREE ARMS] overhead={arms_overhead} prayer={arms_prayer} spread={wrist_spread:.3f} best_wrist_y={best_wrist_y:.3f} avg_shldr_y={avg_shldr_y:.3f}", flush=True)
-            if not arms_ok:
+            # Use nose as head reference for prayer above head check
+            nose_y     = _gy("NOSE")
+            head_ref_y = nose_y if nose_y < avg_shldr_y else (avg_shldr_y - 0.15)
+            # Prayer above head: hands close together AND above nose level
+            prayer_above_head = (wrist_spread < 0.22) and (best_wrist_y < head_ref_y + 0.08)
+            print(f"[TREE ARMS] prayer_above_head={prayer_above_head} spread={wrist_spread:.3f} best_wrist_y={best_wrist_y:.3f} head_ref_y={head_ref_y:.3f}", flush=True)
+            if not prayer_above_head:
                 if tp.get("timer_start") is not None:
                     tp["elapsed"] = tp.get("elapsed", 0) + time.time() - tp["timer_start"]
                     tp["timer_start"] = None
                 return Response({
-                    "message":    "Tree Pose: Raise arms overhead or bring hands to prayer at chest.",
+                    "message":    "Tree Pose: Bring hands together in prayer above your head.",
                     "accuracy":   20, "posture_ok": False,
                     "timer": round(tp.get("elapsed", 0.0), 1), "timer_display": "00:00",
                 })
@@ -2980,6 +2979,7 @@ def reset_password_by_email(request):
 # ─── Profile (stats + recent workouts) ────────────────────────────────────────
 @api_view(["GET", "POST"])
 def profile(request):
+    from django.db.models import Max
     from api.models import User, Session
     from django.utils import timezone
     from django.db.models import Avg
@@ -3022,11 +3022,17 @@ def profile(request):
     ]
     avg_score = sessions.aggregate(avg=Avg("avg_accuracy"))["avg"]
     avg_score = round(float(avg_score), 0) if avg_score is not None else 0
-    # Simple streak: days with at least one session ending that day, going back from today
+    # Streak: convert all session dates to PST before comparing
+    PST_OFFSET = __import__("datetime").timezone(__import__("datetime").timedelta(hours=-8))
+    session_dates = set(
+        s.ended_at.astimezone(PST_OFFSET).date()
+        for s in sessions
+        if s.ended_at
+    )
     streak = 0
     d = today
     while True:
-        if sessions.filter(ended_at__date=d).exists():
+        if d in session_dates:
             streak += 1
             d -= timedelta(days=1)
         else:
@@ -3059,6 +3065,19 @@ def profile(request):
         "totalWorkouts": total_workouts,
         "thisWeek": this_week,
         "streakDays": streak,
+        "personalBest": [
+            {
+                "exercise_type": s["exercise_type"],
+                "best_accuracy": float(s["best_accuracy"]),
+                "best_reps": s["best_reps"],
+            }
+            for s in Session.objects.filter(user=user)
+                .exclude(ended_at__isnull=True)
+                .exclude(avg_accuracy=0)
+                .values("exercise_type")
+                .annotate(best_accuracy=Max("avg_accuracy"), best_reps=Max("total_reps"))
+                .order_by("exercise_type")
+        ],
         "avgScore": int(avg_score),
         "recentWorkouts": recent_workouts,
         "weeklyActivity": weekly_activity,
@@ -3189,5 +3208,57 @@ def verify_otp(request):
         except Exception:
             pass
         return JsonResponse({"success": True, "user_id": user.id, "name": user.first_name, "email": user.email})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@api_view(["GET"])
+def chart_data(request):
+    user_id = request.query_params.get("user_id")
+    if not user_id:
+        return JsonResponse({"error": "user_id required"}, status=400)
+    try:
+        from datetime import timezone as dt_timezone, timedelta as td
+        from .models import Session
+        PST = dt_timezone(td(hours=-8))
+        sessions = Session.objects.filter(
+            user_id=int(user_id),
+            ended_at__isnull=False,
+            avg_accuracy__gt=0
+        ).order_by("ended_at")
+
+        data = {}
+        # Weekly duration: sum minutes per day per exercise
+        from datetime import datetime as dt
+        week_start = dt.now(PST).date() - td(days=dt.now(PST).weekday())
+        weekly_dur = {}
+        all_week_sessions = Session.objects.filter(
+            user_id=int(user_id),
+            ended_at__isnull=False,
+            started_at__isnull=False,
+            ended_at__date__gte=week_start
+        )
+        day_labels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        for s in all_week_sessions:
+            day_idx = s.ended_at.astimezone(PST).weekday()
+            day = day_labels[day_idx]
+            dur_sec = (s.ended_at - s.started_at).total_seconds()
+            dur_min = round(dur_sec / 60, 1)
+            if day not in weekly_dur:
+                weekly_dur[day] = 0
+            weekly_dur[day] = round(weekly_dur[day] + dur_min, 1)
+
+        weekly_duration = [{"day": d, "minutes": weekly_dur.get(d, 0)} for d in day_labels]
+
+        for s in sessions:
+            ex = s.exercise_type
+            date_str = s.ended_at.astimezone(PST).strftime("%b %d")
+            if ex not in data:
+                data[ex] = []
+            data[ex].append({
+                "date": date_str,
+                "accuracy": float(s.avg_accuracy)
+            })
+
+        return JsonResponse({"chartData": data, "weeklyDuration": weekly_duration})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)

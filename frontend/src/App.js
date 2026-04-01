@@ -11,6 +11,7 @@ export default function App() {
   const [route, setRoute] = useState("signin");
   const [exerciseSlug, setExerciseSlug] = useState(null);
 
+
   useEffect(() => {
     const handler = () => {
       const h = (window.location.hash || "").replace("#", "");
