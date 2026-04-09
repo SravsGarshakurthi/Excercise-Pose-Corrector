@@ -15,4 +15,7 @@ urlpatterns = [
     path("session/end",    views.end_session,      name="end_session"),
     path("video/stream",   views.stream_process,  name="stream_process"),
     path("video/upload",   views.upload_video,    name="upload_video"),
+    path("reviews",         views.reviews,          name="reviews"),
+    path("profile/pic",    views.profile_pic,      name="profile_pic"),
+    path("profile/pic/get", views.profile_pic_get,  name="profile_pic_get"),
 ]

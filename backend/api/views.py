@@ -3062,6 +3062,7 @@ def profile(request):
         "height": float(user.height) if user.height is not None else None,
         "weight": float(user.weight) if user.weight is not None else None,
         "memberSince": user.created_at.strftime("%Y-%m-%d") if getattr(user, "created_at", None) else None,
+
         "totalWorkouts": total_workouts,
         "thisWeek": this_week,
         "streakDays": streak,
@@ -3262,3 +3263,80 @@ def chart_data(request):
         return JsonResponse({"chartData": data, "weeklyDuration": weekly_duration})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+def reviews(request):
+    import json
+    import pymysql
+    db = pymysql.connect(host="localhost", user="pose_user", password="pose123", database="exercise_correction", cursorclass=pymysql.cursors.DictCursor)
+    try:
+        if request.method == "POST":
+            data = json.loads(request.body)
+            user_id = data.get("user_id")
+            exercise_type = data.get("exercise_type", "")
+            stars = int(data.get("stars", 5))
+            comment = data.get("comment", "")
+            session_id = data.get("session_id", None)
+            with db.cursor() as cur:
+                cur.execute("INSERT INTO reviews (user_id, session_id, exercise_type, stars, comment) VALUES (%s,%s,%s,%s,%s)", (user_id, session_id, exercise_type, stars, comment))
+            db.commit()
+            return JsonResponse({"ok": True})
+        else:
+            with db.cursor() as cur:
+                cur.execute("""
+                    SELECT r.id, r.stars, r.comment, r.exercise_type, r.created_at,
+                           u.first_name, u.last_name, u.profile_pic
+                    FROM reviews r
+                    JOIN users u ON r.user_id = u.id
+                    ORDER BY r.created_at DESC LIMIT 20
+                """)
+                rows = cur.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    "id": row["id"],
+                    "stars": row["stars"],
+                    "comment": row["comment"],
+                    "exercise_type": row["exercise_type"],
+                    "created_at": str(row["created_at"]),
+                    "name": f"{row['first_name']} {row['last_name']}",
+                    "profile_pic": row["profile_pic"] or "",
+                })
+            return JsonResponse({"reviews": result})
+    finally:
+        db.close()
+
+
+@csrf_exempt
+def profile_pic_get(request):
+    import pymysql
+    user_id = request.GET.get("user_id")
+    if not user_id:
+        return JsonResponse({"profile_pic": ""})
+    db = pymysql.connect(host="localhost", user="pose_user", password="pose123", database="exercise_correction", cursorclass=pymysql.cursors.DictCursor)
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT profile_pic FROM users WHERE id=%s", (user_id,))
+            row = cur.fetchone()
+        return JsonResponse({"profile_pic": row["profile_pic"] or "" if row else ""})
+    finally:
+        db.close()
+
+@csrf_exempt
+def profile_pic(request):
+    import json
+    import pymysql
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=405)
+    data = json.loads(request.body)
+    user_id = data.get("user_id")
+    pic = data.get("profile_pic", "")
+    db = pymysql.connect(host="localhost", user="pose_user", password="pose123", database="exercise_correction", cursorclass=pymysql.cursors.DictCursor)
+    try:
+        with db.cursor() as cur:
+            cur.execute("UPDATE users SET profile_pic=%s WHERE id=%s", (pic, user_id))
+        db.commit()
+        return JsonResponse({"ok": True})
+    finally:
+        db.close()

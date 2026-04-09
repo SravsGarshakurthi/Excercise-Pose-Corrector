@@ -5,8 +5,8 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 const weekDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const EXERCISE_ICONS = {
-  squat: "🦵", plank: "🧍", bicep_curl: "💪",
-  push_up: "🤸", lunge: "🚶", tree_pose: "🧘",
+  squat: "●", plank: "●", bicep_curl: "●",
+  push_up: "●", lunge: "●", tree_pose: "●",
 };
 
 
@@ -26,6 +26,7 @@ export default function ProfilePage({ onNavigate }) {
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [profileData, setProfileData] = useState(null);
+  const [profilePic, setProfilePic] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saveMsg, setSaveMsg] = useState("");
@@ -52,6 +53,10 @@ fetch(`/api/chart-data?user_id=${userId}`)
         setAge(data.age || "");
         setHeight(data.height || "");
         setWeight(data.weight || "");
+        fetch(`/api/profile/pic/get?user_id=${userId}`)
+          .then(r => r.json())
+          .then(pd => setProfilePic(pd.profile_pic || ""))
+          .catch(() => {});
         setLoading(false);
       })
       .catch(() => { setError("Could not load profile data"); setLoading(false); });
@@ -159,7 +164,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 28, fontWeight: 800, color: "#fff",
                   boxShadow: "0 0 24px rgba(124,58,237,0.4)",
-                }}>{displayName.charAt(0).toUpperCase()}</div>
+                }}>{profilePic ? <img src={profilePic} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : displayName.charAt(0).toUpperCase()}</div>
                 <div style={{ flex: 1 }}>
                   <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9", lineHeight: 1.2 }}>{displayName}</h1>
                   <p style={{ margin: "5px 0 2px", opacity: 0.45, fontSize: 13 }}>
@@ -287,7 +292,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
                         background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 14px",
                         border: "1px solid rgba(255,255,255,0.05)",
                       }}>
-                        <span style={{ fontSize: 22 }}>{EXERCISE_ICONS[w.exercise_type] || "🏋️"}</span>
+                        {w.accuracy === 100 ? <span style={{ fontSize: "18px", flexShrink: 0 }}>⭐</span> : <span style={{ width: "14px", height: "14px", borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #fde68a, #f59e0b, #b45309)", display: "inline-block", flexShrink: 0, boxShadow: "0 2px 6px rgba(245,158,11,0.5)" }}></span>}
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: 14, textTransform: "capitalize" }}>{(w.exercise_type || "").replace(/_/g, " ")}</div>
                           <div style={{ fontSize: 12, opacity: 0.5 }}>{w.date ? w.date.split("-").slice(1).concat(w.date.split("-")[0]).join("/") : ""} · {w.mode === "upload" ? "Upload" : "Live"} · {(w.exercise_type === "plank" || w.exercise_type === "tree_pose") ? `${w.reps}s` : `${w.reps} reps`}</div>
@@ -296,7 +301,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
                           background: w.accuracy >= 90 ? "rgba(6,182,212,0.15)" : "rgba(124,58,237,0.15)",
                           color: w.accuracy >= 90 ? "#06b6d4" : "#7c3aed",
                           borderRadius: 8, padding: "4px 10px", fontSize: 13, fontWeight: 700
-                        }}>{w.accuracy}%</div>
+                        }}>{`${w.accuracy}%`}</div>
                       </div>
                     ))}
                   </div>
@@ -343,8 +348,8 @@ fetch(`/api/chart-data?user_id=${userId}`)
                     <ResponsiveContainer width="100%" height={160}>
                       <LineChart data={points} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={theme === "light" ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.06)"} />
-                        <XAxis dataKey="date" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }} />
-                        <YAxis domain={[0, 100]} tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }} unit="%" />
+                        <XAxis dataKey="date" tick={{ fill: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", fontSize: 10 }} />
+                        <YAxis domain={[0, 100]} tick={{ fill: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", fontSize: 10 }} unit="%" />
                         <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} labelStyle={{ color: "#e6f7f9" }} formatter={(val) => [val + "%", "Accuracy"]} />
                         <Line type="monotone" dataKey="accuracy" stroke={color} strokeWidth={2.5} dot={{ fill: color, r: 3 }} activeDot={{ r: 5 }} />
                       </LineChart>

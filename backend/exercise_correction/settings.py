@@ -127,6 +127,6 @@ EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
 EMAIL_HOST_USER     = 'posecorrectorai@gmail.com'
-EMAIL_HOST_PASSWORD = 'your-app-password-here'
+EMAIL_HOST_PASSWORD = 'ehaq yaan ozdz dsys'
 DEFAULT_FROM_EMAIL  = 'Pose Corrector AI <posecorrectorai@gmail.com>'
 

@@ -87,10 +87,16 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
   const postureOkRef = useRef(undefined);
   const sessionIdRef = useRef(null);
   const repAccuraciesRef = useRef([]);
+  const maxCounterRef = useRef(0);
+  const startCounterRef = useRef(-1);
   const lastSpokenRef = useRef("");
   const lastSpokenTimeRef = useRef(0);
   const [isMuted, setIsMuted] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const [sessionSummary, setSessionSummary] = useState(null);
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const isMutedRef = useRef(false);
 
   const lastSpeakTimeRef = useRef(0);
@@ -148,7 +154,6 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
     window.speechSynthesis.speak(u);
   }
 
-    const maxCounterRef = useRef(0);
   const smoothLandmarksRef = useRef(null);
   const stableCorrectRef = useRef(null);
   const pendingCorrectRef = useRef(null);
@@ -264,16 +269,16 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                     }
                   }
                   if (data.accuracy) repAccuraciesRef.current.push(data.accuracy);
-<<<<<<< HEAD
-                  if (data.counter !== undefined && data.counter !== null && data.counter > maxCounterRef.current) {
-                    maxCounterRef.current = data.counter;
-                    if (exerciseId !== "plank" && exerciseId !== "tree-pose") {
-                      announce("Rep " + data.counter);
+                  if (data.counter !== undefined && data.counter !== null) {
+                    if (startCounterRef.current === -1) startCounterRef.current = data.counter;
+                    const relativeCount = data.counter - startCounterRef.current;
+                    if (relativeCount > maxCounterRef.current) {
+                      maxCounterRef.current = relativeCount;
+                      if (exerciseId !== "plank" && exerciseId !== "tree-pose") {
+                        announce("Rep " + relativeCount);
+                      }
                     }
                   }
-=======
-                  if (data.counter !== undefined && data.counter !== null && data.counter > maxCounterRef.current) maxCounterRef.current = data.counter;
->>>>>>> 66834cdf0937d435e227494e1115d640f173a464
                 }
               }).catch(() => {});
             }
@@ -299,21 +304,54 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
   }
 
   function handleBack() {
+    const isTimer = exerciseId === "plank" || exerciseId === "tree-pose";
+    const reps = isTimer ? totalPlankSecondsRef.current : (maxCounterRef.current || (liveFeedback ? liveFeedback.counter || 0 : 0));
+    const acc = repAccuraciesRef.current.length > 0 ? Math.round(repAccuraciesRef.current.reduce((a,b) => a+b, 0) / repAccuraciesRef.current.length) : (liveFeedback && liveFeedback.accuracy ? Math.round(liveFeedback.accuracy) : 0);
     if (sessionIdRef.current) {
-      const reps = (exerciseId === "plank" || exerciseId === "tree-pose") ? totalPlankSecondsRef.current : (maxCounterRef.current || (liveFeedback ? liveFeedback.counter || 0 : 0));
-      const acc = repAccuraciesRef.current.length > 0 ? Math.round(repAccuraciesRef.current.reduce((a,b) => a+b, 0) / repAccuraciesRef.current.length) : 0;
       api.endSession(sessionIdRef.current, reps, acc).catch(() => {});
       sessionIdRef.current = null;
     }
+    if (mode === "live" && (reps > 0 || acc > 0)) {
+      setSessionSummary({ reps, acc, isTimer, exerciseName: exercise ? exercise.name : exerciseId });
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      setStream(null);
+      return;
+    }
     if (stream) stream.getTracks().forEach((t) => t.stop());
     totalPlankSecondsRef.current = 0; plankSecondsRef.current = 0;
+    maxCounterRef.current = 0; repAccuraciesRef.current = [];
     setMode(null); setStream(null); setUploadFile(null);
     setUploadError(""); setLiveError(""); setLiveFeedback(null);
     setAnalyzing(false); setUploadSuccess(false); setUploadResult(null);
     onNavigate("dashboard");
   }
 
+  async function handleSubmitReview() {
+    const userId = localStorage.getItem("pc_demo_user_id");
+    if (!userId || reviewStars === 0) return;
+    await api.submitReview(userId, exerciseId, reviewStars, reviewComment, sessionIdRef.current);
+    setReviewSubmitted(true);
+  }
+
+  function handleDismissSummary() {
+    totalPlankSecondsRef.current = 0; plankSecondsRef.current = 0;
+    maxCounterRef.current = 0; repAccuraciesRef.current = [];
+    setMode(null); setStream(null); setUploadFile(null);
+    setUploadError(""); setLiveError(""); setLiveFeedback(null);
+    setAnalyzing(false); setUploadSuccess(false); setUploadResult(null);
+    setSessionSummary(null);
+    setReviewStars(0);
+    setReviewComment("");
+    setReviewSubmitted(false);
+    onNavigate("dashboard");
+  }
+
   function handleLiveStart() {
+    maxCounterRef.current = 0;
+    startCounterRef.current = -1;
+    repAccuraciesRef.current = [];
+    totalPlankSecondsRef.current = 0;
+    plankSecondsRef.current = 0;
     if (userId) {
       api.startSession(userId, api.toBackendExerciseType(exerciseId), "live")
         .then(data => { sessionIdRef.current = data.session_id; })
@@ -478,6 +516,58 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
   const youtubeUrl = exercise.youtubeUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${exercise.name} exercise tutorial`)}`;
   const diff = difficultyStyle[exercise.difficulty] || difficultyStyle["Beginner"];
 
+  if (sessionSummary) {
+    const { reps, acc, isTimer, exerciseName } = sessionSummary;
+    const feedback = acc >= 90 ? "Excellent form! You crushed it!" : acc >= 75 ? "Great job! Keep pushing!" : acc >= 60 ? "Good effort! Focus on form next time." : "Keep practicing — you're improving!";
+    return (
+      <div style={{ minHeight:"100vh", width:"100%", background: theme === "light" ? "linear-gradient(180deg, #dbeafe, #bfdbfe)" : "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), linear-gradient(180deg,#0f172a,#0b3140)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Inter, ui-sans-serif, system-ui, sans-serif" }}>
+        <div style={{ background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.05)", border: theme === "light" ? "1px solid rgba(30,64,175,0.3)" : "1px solid rgba(255,255,255,0.1)", borderRadius:24, padding:"48px 40px", maxWidth:480, width:"90%", textAlign:"center", boxShadow: theme === "light" ? "0 8px 32px rgba(0,0,0,0.12)" : "none" }}>
+          <div style={{ fontSize:80, marginBottom:16 }}>🏆</div>
+          <h1 style={{ margin:"0 0 8px", fontSize:28, fontWeight:800, color: theme === "light" ? "#0f172a" : "white" }}>Session Complete!</h1>
+          <p style={{ margin:"0 0 32px", fontSize:16, color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)" }}>{exerciseName}</p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:32 }}>
+            <div style={{ background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.06)", border:"1px solid #6366f180", borderRadius:16, padding:"24px 16px" }}>
+              <div style={{ fontSize:36, fontWeight:800, color:"#6366f1" }}>{isTimer ? `${reps}s` : reps}</div>
+              <div style={{ fontSize:13, color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", marginTop:4 }}>{isTimer ? "Hold Time" : "Total Reps"}</div>
+            </div>
+            <div style={{ background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.06)", border:"1px solid #06b6d480", borderRadius:16, padding:"24px 16px" }}>
+              <div style={{ fontSize:36, fontWeight:800, color:"#06b6d4" }}>{acc}%</div>
+              <div style={{ fontSize:13, color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", marginTop:4 }}>Avg Accuracy</div>
+            </div>
+          </div>
+          <div style={{ background: theme === "light" ? "rgba(99,102,241,0.08)" : "rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding:"16px 20px", marginBottom:32, fontSize:15, color: theme === "light" ? "#4338ca" : "#a5b4fc" }}>{feedback}</div>
+          {!reviewSubmitted ? (
+            <div style={{ marginBottom:24, textAlign:"left" }}>
+              <div style={{ fontSize:15, fontWeight:600, color: theme === "light" ? "#0f172a" : "white", marginBottom:10 }}>Rate your session</div>
+              <div style={{ display:"flex", gap:8, marginBottom:14, justifyContent:"center" }}>
+                {[1,2,3,4,5].map(s => (
+                  <span key={s} onClick={() => setReviewStars(s)} style={{ fontSize:32, cursor:"pointer", filter: s <= reviewStars ? "none" : "grayscale(1)", transition:"all 0.15s" }}>⭐</span>
+                ))}
+              </div>
+              <textarea
+                value={reviewComment}
+                onChange={e => setReviewComment(e.target.value)}
+                placeholder="Add a comment (optional)..."
+                rows={3}
+                style={{ width:"100%", borderRadius:10, border: theme === "light" ? "1px solid rgba(30,64,175,0.3)" : "1px solid rgba(255,255,255,0.15)", background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)", color: theme === "light" ? "#0f172a" : "white", padding:"10px 14px", fontSize:14, resize:"none", boxSizing:"border-box", outline:"none", marginBottom:10 }}
+              />
+              <button onClick={handleSubmitReview} disabled={reviewStars === 0} style={{ width:"100%", padding:"12px", borderRadius:10, border:"none", background: reviewStars === 0 ? "#94a3b8" : "linear-gradient(135deg,#f59e0b,#ef4444)", color:"white", fontSize:14, fontWeight:700, cursor: reviewStars === 0 ? "not-allowed" : "pointer", marginBottom:8 }}>
+                Submit Review
+              </button>
+            </div>
+          ) : (
+            <div style={{ marginBottom:24, padding:"14px", borderRadius:12, background:"rgba(6,182,212,0.1)", border:"1px solid rgba(6,182,212,0.3)", color:"#06b6d4", fontWeight:600, fontSize:14 }}>
+              Thanks for your review!
+            </div>
+          )}
+          <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+            <button onClick={handleDismissSummary} style={{ padding:"14px 28px", borderRadius:12, border:"none", background:"linear-gradient(135deg,#7c3aed,#06b6d4)", color:"white", fontSize:15, fontWeight:700, cursor:"pointer" }}>Back to Exercises</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       minHeight: "100vh", width: "100%",
@@ -535,7 +625,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"10px", flexWrap:"wrap" }}>
                     <h1 style={{ margin:0, fontSize:"34px", fontWeight:"800", color: theme === "light" ? "#0f172a" : "white" }}>{exercise.name}</h1>
-                    {exercise.difficulty && (
+                    {false && (
                       <span style={{ padding:"5px 16px", borderRadius:"20px", fontSize:"13px", fontWeight:"600", background: diff.bg, border:`1px solid ${diff.border}`, color: diff.text }}>
                         {exercise.difficulty}
                       </span>
@@ -567,7 +657,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                     <p style={{ margin:"0 0 10px", fontSize:"13px", fontWeight:"600", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:"1px" }}>Muscles Targeted</p>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"8px" }}>
                       {exercise.muscles.map((m, i) => (
-                        <span key={i} style={{ padding:"5px 14px", borderRadius:"20px", fontSize:"13px", background:"rgba(6,182,212,0.12)", border:"1px solid rgba(6,182,212,0.25)", color:"#67e8f9" }}>{m}</span>
+                        <span key={i} style={{ padding:"5px 14px", borderRadius:"20px", fontSize:"13px", background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.35)", color:"#4ade80" }}>{m}</span>
                       ))}
                     </div>
                   </div>
@@ -643,7 +733,7 @@ export default function ExercisePage({ exerciseId, onNavigate }) {
                     )}
                     {liveFeedback.counter != null && (
                       <p className="exercise-feedback-counter">
-                        Reps: {liveFeedback.counter}
+                        Reps: {liveFeedback.counter - startCounterRef.current > 0 ? liveFeedback.counter - startCounterRef.current : 0}
                         <button type="button" className="btn ghost" onClick={handleResetCounter} style={{ marginLeft:"12px", fontSize:"12px", padding:"3px 10px", minWidth:"auto" }}>Reset</button>
                       </p>
                     )}

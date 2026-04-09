@@ -19,6 +19,50 @@ const tips = [
   { icon: "📏", title: "Stand back",        desc: "Keep 5–8 feet of distance from the camera for full body detection." },
 ];
 
+function ReviewsSection({ theme }) {
+  const [reviews, setReviews] = React.useState([]);
+  React.useEffect(() => {
+    fetch("/api/reviews")
+      .then(r => r.json())
+      .then(d => setReviews(d.reviews || []))
+      .catch(() => {});
+  }, []);
+
+  if (reviews.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: "48px" }}>
+      <h2 style={{ margin: "0 0 20px", fontSize: "20px", fontWeight: "700", color: theme === "light" ? "#0f172a" : "white" }}>
+        What Our Users Say
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
+        {reviews.map((r, i) => (
+          <div key={i} style={{
+            padding: "20px",
+            background: theme === "light" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.04)",
+            borderRadius: "16px",
+            border: theme === "light" ? "1px solid rgba(30,64,175,0.2)" : "1px solid rgba(255,255,255,0.08)",
+            boxShadow: theme === "light" ? "0 2px 12px rgba(0,0,0,0.06)" : "none",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+              {r.profile_pic
+                ? <img src={r.profile_pic} alt={r.name} style={{ width: "42px", height: "42px", borderRadius: "50%", objectFit: "cover", border: "2px solid #7c3aed" }} />
+                : <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "linear-gradient(135deg,#7c3aed,#06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "16px" }}>{r.name.charAt(0).toUpperCase()}</div>
+              }
+              <div>
+                <div style={{ fontWeight: "600", fontSize: "14px", color: theme === "light" ? "#0f172a" : "white" }}>{r.name}</div>
+                <div style={{ fontSize: "12px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>{r.exercise_type.replace(/-/g," ")}</div>
+              </div>
+              <div style={{ marginLeft: "auto", fontSize: "16px" }}>{"⭐".repeat(r.stars)}</div>
+            </div>
+            {r.comment && <div style={{ fontSize: "13px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.6)", lineHeight: 1.6, fontStyle: "italic" }}>"{r.comment}"</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ExerciseLanding({ onNavigate }) {
   const [hovered, setHovered] = useState(null);
 
@@ -208,26 +252,7 @@ export default function ExerciseLanding({ onNavigate }) {
           })}
         </div>
 
-        {/* TIPS SECTION */}
-        <div>
-          <h2 style={{ margin: "0 0 20px", fontSize: "20px", fontWeight: "700", color: theme === "light" ? "#0f172a" : "white" }}>
-            💡 <span style={{ color: theme === "light" ? "#0f172a" : "inherit" }}>Tips for Best Results</span>
-          </h2>
-          <div className="landing-tips-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
-            {tips.map((t, i) => (
-              <div key={i} style={{
-                padding: "20px",
-                background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.03)",
-                borderRadius: "14px",
-                border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.06)",
-              }}>
-                <div style={{ fontSize: "24px", marginBottom: "10px" }}>{t.icon}</div>
-                <div style={{ fontSize: "15px", fontWeight: "600", color: theme === "light" ? "#0f172a" : "white", marginBottom: "6px" }}>{t.title}</div>
-                <div style={{ fontSize: "13px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>{t.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+
 
       </main>
     </div>

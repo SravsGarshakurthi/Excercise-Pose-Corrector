@@ -14,6 +14,7 @@ class User(models.Model):
     height    = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     weight    = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     created_at    = models.DateTimeField(auto_now_add=True)
+    profile_pic   = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = 'users'
@@ -101,6 +102,7 @@ class OTPVerification(models.Model):
     weight        = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     otp_code      = models.CharField(max_length=6)
     created_at    = models.DateTimeField(auto_now_add=True)
+    profile_pic   = models.TextField(null=True, blank=True)
     is_used       = models.BooleanField(default=False)
 
     class Meta:

@@ -2,18 +2,51 @@ import React, { useState, useEffect } from "react";
 import * as api from "../api";
 import useTheme from "../useTheme";
 
+function ReviewsMini({ isLight }) {
+  const [reviews, setReviews] = React.useState([]);
+  React.useEffect(() => {
+    fetch("/api/reviews")
+      .then(r => r.json())
+      .then(d => setReviews((d.reviews || []).slice(0, 4)))
+      .catch(() => {});
+  }, []);
+  if (reviews.length === 0) return null;
+  return (
+    <div style={{ marginTop: "28px", width: "100%" }}>
+      <div style={{ fontSize: "13px", fontWeight: "600", color: isLight ? "#64748b" : "rgba(255,255,255,0.4)", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>What users say</div>
+      <div style={{ display: "flex", flexDirection: "row", gap: "10px", overflowX: "auto", flexWrap: "nowrap", width: "100%", paddingBottom: "6px" }}>
+        {reviews.map((r, i) => (
+          <div key={i} style={{ padding: "16px", borderRadius: "8px", background: isLight ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.04)", border: `1px solid ${["#6366f1","#06b6d4","#ef4444","#eab308"][i % 4]}80`, minWidth: "180px", maxWidth: "180px", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+              {r.profile_pic
+                ? <img src={r.profile_pic} alt={r.name} style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover", border: "2px solid #7c3aed" }} />
+                : <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg,#7c3aed,#06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "13px" }}>{r.name.charAt(0).toUpperCase()}</div>
+              }
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "600", fontSize: "12px", color: isLight ? "#0f172a" : "white" }}>{r.name}</div>
+                <div style={{ fontSize: "11px", color: isLight ? "#64748b" : "rgba(255,255,255,0.4)" }}>{"⭐".repeat(r.stars)}</div>
+              </div>
+            </div>
+            {r.comment && <div style={{ fontSize: "12px", color: isLight ? "#475569" : "rgba(255,255,255,0.5)", fontStyle: "italic", lineHeight: 1.5 }}>"{r.comment}"</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function SignIn({ onNavigate }) {
   const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
+  
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("pc_demo_email");
-    if (saved) { setEmail(saved); setRemember(true); }
+    
+    
   }, []);
 
   function validate() {
@@ -32,8 +65,8 @@ export default function SignIn({ onNavigate }) {
     setIsLoading(true);
     try {
       const data = await api.signin(email, password);
-      if (remember) localStorage.setItem("pc_demo_email", email);
-      else localStorage.removeItem("pc_demo_email");
+      
+      
       localStorage.setItem("pc_demo_user_id", String(data.user_id));
       localStorage.setItem("pc_demo_username", data.name || data.email || email);
       onNavigate("dashboard");
@@ -45,10 +78,10 @@ export default function SignIn({ onNavigate }) {
   }
 
   const features = [
-    { icon: "🤸", title: "Real-time Pose Analysis", desc: "AI tracks your body movements frame by frame" },
-    { icon: "⚡", title: "Form Correction", desc: "Instant feedback on your exercise technique" },
-    { icon: "📊", title: "Progress Tracking", desc: "Monitor your improvement over time" },
-    { icon: "💪", title: "6+ Exercises", desc: "Squats, planks, curls, lunges and more" },
+    { icon: "1", title: "Real-time Pose Analysis", desc: "AI tracks your body movements frame by frame" },
+    { icon: "2", title: "Form Correction", desc: "Instant feedback on your exercise technique" },
+    { icon: "3", title: "Progress Tracking", desc: "Monitor your improvement over time" },
+    { icon: "4", title: "6+ Exercises", desc: "Squats, planks, curls, lunges and more" },
   ];
 
   const isLight = theme === "light";
@@ -99,7 +132,7 @@ export default function SignIn({ onNavigate }) {
                 background: isLight ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.04)",
                 border: isLight ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.06)",
               }}>
-                <span className="si-feature-icon">{f.icon}</span>
+                <span className="si-feature-icon" style={{ fontSize: "48px", fontWeight: "900", background: "linear-gradient(135deg, #7c3aed, #06b6d4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", minWidth: "52px", textAlign: "center", lineHeight: 1, fontStyle: "italic", letterSpacing: "-2px" }}>{f.icon}</span>
                 <div>
                   <div className="si-feature-title" style={{ color: isLight ? "#0f172a" : "rgba(255,255,255,0.9)" }}>{f.title}</div>
                   <div className="si-feature-desc" style={{ color: isLight ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.45)" }}>{f.desc}</div>
@@ -126,15 +159,14 @@ export default function SignIn({ onNavigate }) {
       </div>
 
       {/* RIGHT PANEL */}
-      <div className="si-right" style={{
-        background: isLight ? "#ffffff" : "rgba(11,18,33,0.98)",
-      }}>
+      <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", background: isLight ? "#ffffff" : "rgba(11,18,33,0.98)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(60px,8vw,100px) clamp(24px,6vw,56px) 24px" }}>
         <div className="si-right-inner">
 
           <div className="si-welcome">
-            <h2 className="si-welcome-title" style={{ color: isLight ? "#0f172a" : "white" }}>Welcome back 👋</h2>
+            <h2 className="si-welcome-title" style={{ color: isLight ? "#0f172a" : "white" }}>Welcome</h2>
             <p className="si-welcome-sub" style={{ color: isLight ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.4)" }}>
-              Sign in to continue your fitness journey
+              Sign in to your account
             </p>
           </div>
 
@@ -142,9 +174,9 @@ export default function SignIn({ onNavigate }) {
             <div className="si-field">
               <label className="si-label" style={{ color: isLight ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)" }}>Email address</label>
               <div style={{ position: "relative" }}>
-                <span className="si-field-icon">✉️</span>
+                
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" autoComplete="email"
+                  placeholder="you@example.com" autoComplete="off"
                   className="si-input si-input--icon"
                   style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(30,64,175,0.55)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
                   onFocus={e => e.target.style.borderColor = '#7c3aed'}
@@ -155,27 +187,19 @@ export default function SignIn({ onNavigate }) {
             <div className="si-field">
               <label className="si-label" style={{ color: isLight ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)" }}>Password</label>
               <div style={{ position: "relative" }}>
-                <span className="si-field-icon">🔒</span>
+                
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password" autoComplete="current-password"
+                  placeholder="Enter your password" autoComplete="new-password"
                   className="si-input si-input--icon si-input--icon-right"
                   style={{ background: isLight ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)", border: isLight ? "1px solid rgba(30,64,175,0.55)" : "1px solid rgba(255,255,255,0.1)", color: isLight ? "#0f172a" : "white" }}
                   onFocus={e => e.target.style.borderColor = '#7c3aed'}
                   onBlur={e => e.target.style.borderColor = isLight ? 'rgba(30,64,175,0.55)' : 'rgba(255,255,255,0.1)'} />
                 <button type="button" onClick={() => setShowPassword(v => !v)} className="si-eye-btn">
-                  {showPassword ? "🙈" : "👁️"}
+                  {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
             </div>
 
-            <div className="si-remember-row">
-              <label className="si-remember">
-                <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
-                  style={{ width: "17px", height: "17px", accentColor: "#7c3aed" }} />
-                <span style={{ color: isLight ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)" }}>Remember me</span>
-              </label>
-              <button type="button" className="si-forgot" onClick={() => onNavigate("reset-password")}>Forgot password?</button>
-            </div>
 
             {error && (
               <div className="su-alert su-alert--error">⚠️ {error}</div>
@@ -195,6 +219,10 @@ export default function SignIn({ onNavigate }) {
               Create an account
             </button>
           </form>
+        </div>
+        </div>
+        <div style={{ padding: "80px clamp(24px,6vw,56px) 32px", borderTop: isLight ? "1px solid rgba(0,0,0,0.06)" : "1px solid rgba(255,255,255,0.06)" }}>
+          <ReviewsMini isLight={isLight} />
         </div>
       </div>
     </div>

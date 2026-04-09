@@ -206,3 +206,26 @@ const api = {
 };
 
 export default api;
+
+export async function submitReview(userId, exerciseType, stars, comment, sessionId) {
+  const res = await fetch("/api/reviews", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, exercise_type: exerciseType, stars, comment, session_id: sessionId }),
+  });
+  return res.json();
+}
+
+export async function getReviews() {
+  const res = await fetch("/api/reviews");
+  return res.json();
+}
+
+export async function uploadProfilePic(userId, profilePic) {
+  const res = await fetch("/api/profile/pic", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, profile_pic: profilePic }),
+  });
+  return res.json();
+}
