@@ -583,6 +583,8 @@ def _reset_exercise_counter(client_key: str, ex_type: str) -> None:
         _WALL_SIT_RT_STATE[client_key] = {"hold_start_ts": None, "hold_seconds": 0}
     elif ex_type == "tree_pose":
         _TREE_POSE_RT_STATE[client_key] = {"hold_start": None, "rep_counted": False, "counter": 0}
+    elif ex_type == "deadlift":
+        _DEADLIFT_RT_STATE[client_key] = {"stage": "", "counter": 0}
 
 def _get_client_key(request) -> str:
     # Basic keying; good enough for local demo.
@@ -728,6 +730,9 @@ def _ensure_push_up_state(client_key: str):
 
 # --- Real-time wall sit state (hold timer) ---
 _WALL_SIT_RT_STATE = {}
+
+# ── Deadlift real-time state ────────────────────────────────────────────────
+_DEADLIFT_RT_STATE = {}
 
 # ── Tree Pose: time-based hold state ──────────────────────────────────────────
 _TREE_POSE_RT_STATE  = {}
@@ -973,6 +978,7 @@ def stream_process(request):
     reset_counter = request.data.get("reset_counter", False)
 
     print(f"🎯 stream_process: ex={ex_type}, landmarks={len(landmarks)}, file={__file__}")
+    print(f"[DEBUG] ex_type received: '{ex_type}'")
 
     if reset_counter:
         client_key = _get_client_key(request)
@@ -998,9 +1004,11 @@ def stream_process(request):
         )
 
     try:
+        print(f"[stream_process] ex_type={ex_type} landmarks_count={len(landmarks)}")
         # Build feature vector consistent with how the models were trained
         input_row = build_feature_row(ex_type, landmarks)
         X = np.array([input_row])
+        print(f"[stream_process] feature_row built, shape={X.shape}")
 
         # Bicep Curl: use repo-style real-time angle + rep logic, plus lean-back ML.
         if ex_type == "bicep_curl":
@@ -2279,6 +2287,85 @@ def stream_process(request):
                 "counter":    tp["counter"],
             })
 
+
+        # ── Deadlift ──────────────────────────────────────────────────────────
+        if ex_type == "deadlift":
+            client_key = _get_client_key(request)
+            if client_key not in _DEADLIFT_RT_STATE:
+                _DEADLIFT_RT_STATE[client_key] = {"stage": "", "counter": 0}
+            st = _DEADLIFT_RT_STATE[client_key]
+
+            calculate_angle = get_calculate_angle()
+            print(f"[Deadlift DEBUG] calculate_angle={calculate_angle}, st={st}")
+            if calculate_angle is None:
+                return Response({"message": "Deadlift: Loading...", "accuracy": 0, "posture_ok": False, "counter": st["counter"]})
+
+            # MediaPipe landmark indices (hardcoded — no mediapipe import needed)
+            # 11=LEFT_SHOULDER, 23=LEFT_HIP, 25=LEFT_KNEE, 27=LEFT_ANKLE
+            # 12=RIGHT_SHOULDER, 24=RIGHT_HIP, 26=RIGHT_KNEE, 28=RIGHT_ANKLE
+            VIS = 0.3
+            HINGE_DOWN = 100
+            LOCKOUT_UP = 160
+            BACK_ROUND = 140
+
+            def get_lm(idx):
+                p = landmarks[idx] if idx < len(landmarks) else {}
+                if isinstance(p, dict):
+                    return p
+                return {"x": getattr(p,"x",0.5), "y": getattr(p,"y",0.5), "visibility": getattr(p,"visibility",0)}
+
+            # Try left side first, fallback to right
+            ls = get_lm(11); lh = get_lm(23); lk = get_lm(25); la = get_lm(27)
+            rs = get_lm(12); rh = get_lm(24); rk = get_lm(26); ra = get_lm(28)
+
+            left_vis  = min(ls.get("visibility",0), lh.get("visibility",0), lk.get("visibility",0), la.get("visibility",0))
+            right_vis = min(rs.get("visibility",0), rh.get("visibility",0), rk.get("visibility",0), ra.get("visibility",0))
+
+            if left_vis >= right_vis and left_vis >= VIS:
+                s, h, k, a = ls, lh, lk, la
+            elif right_vis >= VIS:
+                s, h, k, a = rs, rh, rk, ra
+            else:
+                return Response({
+                    "message": "Deadlift: Step back — show full body (head to feet) to camera.",
+                    "accuracy": 0, "posture_ok": False, "counter": st["counter"],
+                })
+
+            shoulder = [s["x"], s["y"]]; hip   = [h["x"], h["y"]]
+            knee     = [k["x"], k["y"]]; ankle = [a["x"], a["y"]]
+
+            hip_angle  = calculate_angle(shoulder, hip, knee)
+            back_angle = calculate_angle(shoulder, hip, ankle)
+
+            # Rep counting: hinge down then stand up = 1 rep
+            if hip_angle < HINGE_DOWN:
+                st["stage"] = "down"
+            elif hip_angle > LOCKOUT_UP and st["stage"] == "down":
+                st["stage"] = "up"
+                st["counter"] += 1
+
+            back_rounded = back_angle < BACK_ROUND
+
+            if back_rounded:
+                return Response({
+                    "message": "Deadlift: Keep your back straight! Engage your core and lift with your legs.",
+                    "accuracy": 40, "posture_ok": False,
+                    "stage": st["stage"], "counter": st["counter"],
+                })
+
+            if st["stage"] == "down":
+                return Response({
+                    "message": "Deadlift: Good hinge! Now drive through your heels and stand tall.",
+                    "accuracy": 85, "posture_ok": True,
+                    "stage": st["stage"], "counter": st["counter"],
+                })
+
+            return Response({
+                "message": "Deadlift: Great rep! Hinge at the hips to lower the bar back down.",
+                "accuracy": 100, "posture_ok": True,
+                "stage": st["stage"], "counter": st["counter"],
+            })
+
         # Fallback for squat or any other type
         exercise_name = ex_type.replace("_", " ").title()
         return Response(
@@ -2290,7 +2377,9 @@ def stream_process(request):
         )
 
     except Exception as e:
+        import traceback
         print(f"Server Error in stream_process: {e}")
+        traceback.print_exc()
         return Response({"message": "AI Processing Error", "accuracy": 0, "posture_ok": False})
 
 

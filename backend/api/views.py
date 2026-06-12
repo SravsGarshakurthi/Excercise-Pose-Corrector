@@ -546,7 +546,8 @@ def _reset_exercise_counter(client_key: str, ex_type: str) -> None:
         }
     elif ex_type == "push_up":
         _PUSH_UP_RT_STATE[client_key] = {"stage": "up", "counter": 0}
-        _LUNGE_RT_STATE[client_key]    = {"stage": "up", "counter": 0}
+    elif ex_type == "lunge":
+        _LUNGE_RT_STATE[client_key] = {"stage": "up", "counter": 0}
     elif ex_type == "sit_up":
         _SITUP_RT_STATE[client_key] = {"stage": "down", "counter": 0}
     elif ex_type == "wall_sit":
@@ -723,6 +724,9 @@ def _ensure_push_up_state(client_key: str):
 
 # --- Real-time wall sit state (hold timer) ---
 _WALL_SIT_RT_STATE = {}
+
+# ── Deadlift real-time state ─────────────────────────────────────────────────
+_DEADLIFT_RT_STATE = {}
 
 # ── Tree Pose: time-based hold state ──────────────────────────────────────────
 _TREE_POSE_RT_STATE  = {}
@@ -2594,6 +2598,78 @@ def stream_process(request):
                 "timer_display": f"{mins:02d}:{secs:02d}",
             })
 
+        # ── Deadlift ──────────────────────────────────────────────────────────
+        if ex_type == "deadlift":
+            client_key = _get_client_key(request)
+            if client_key not in _DEADLIFT_RT_STATE:
+                _DEADLIFT_RT_STATE[client_key] = {"stage": "", "counter": 0}
+            st = _DEADLIFT_RT_STATE[client_key]
+
+            calculate_angle = get_calculate_angle()
+            if calculate_angle is None:
+                return Response({"message": "Deadlift: Loading...", "accuracy": 0, "posture_ok": False, "counter": st["counter"]})
+
+            VIS = 0.3
+            HINGE_DOWN = 120   # hip angle below = hinge position
+            LOCKOUT_UP = 155   # hip angle above = standing lockout
+            BACK_ROUND = 80    # only flag truly severe rounding
+
+            def get_lm(idx):
+                p = landmarks[idx] if idx < len(landmarks) else {}
+                if isinstance(p, dict):
+                    return p
+                return {"x": getattr(p,"x",0.5), "y": getattr(p,"y",0.5), "visibility": getattr(p,"visibility",0)}
+
+            ls = get_lm(11); lh = get_lm(23); lk = get_lm(25); la = get_lm(27)
+            rs = get_lm(12); rh = get_lm(24); rk = get_lm(26); ra = get_lm(28)
+
+            left_vis  = min(ls.get("visibility",0), lh.get("visibility",0), lk.get("visibility",0), la.get("visibility",0))
+            right_vis = min(rs.get("visibility",0), rh.get("visibility",0), rk.get("visibility",0), ra.get("visibility",0))
+
+            if left_vis >= right_vis and left_vis >= VIS:
+                s, h, k, a = ls, lh, lk, la
+            elif right_vis >= VIS:
+                s, h, k, a = rs, rh, rk, ra
+            else:
+                return Response({
+                    "message": "Deadlift: Step back — show full body (head to feet) to camera.",
+                    "accuracy": 0, "posture_ok": False, "counter": st["counter"],
+                })
+
+            shoulder = [s["x"], s["y"]]; hip   = [h["x"], h["y"]]
+            knee     = [k["x"], k["y"]]; ankle = [a["x"], a["y"]]
+
+            hip_angle  = calculate_angle(shoulder, hip, knee)
+            back_angle = calculate_angle(shoulder, hip, ankle)
+
+            if hip_angle < HINGE_DOWN:
+                st["stage"] = "down"
+            elif hip_angle > LOCKOUT_UP and st["stage"] == "down":
+                st["stage"] = "up"
+                st["counter"] += 1
+
+            back_rounded = back_angle < BACK_ROUND
+
+            if back_rounded:
+                return Response({
+                    "message": "Deadlift: Keep your back straight! Engage your core and lift with your legs.",
+                    "accuracy": 40, "posture_ok": False,
+                    "stage": st["stage"], "counter": st["counter"],
+                })
+
+            if st["stage"] == "down":
+                return Response({
+                    "message": "Deadlift: Good hinge! Now drive through your heels and stand tall.",
+                    "accuracy": 85, "posture_ok": True,
+                    "stage": st["stage"], "counter": st["counter"],
+                })
+
+            return Response({
+                "message": "Deadlift: Great rep! Hinge at the hips to lower the bar back down.",
+                "accuracy": 100, "posture_ok": True,
+                "stage": st["stage"], "counter": st["counter"],
+            })
+
         # Fallback for squat or any other type
         exercise_name = ex_type.replace("_", " ").title()
         return Response(
@@ -2991,6 +3067,7 @@ def profile(request):
             if "age" in request.data: user.age = request.data["age"]
             if "height" in request.data: user.height = request.data["height"]
             if "weight" in request.data: user.weight = request.data["weight"]
+            if "weekly_target" in request.data: user.weekly_target = request.data["weekly_target"]
             user.save()
             return JsonResponse({"success": True})
         except Exception as e:
@@ -3061,6 +3138,12 @@ def profile(request):
         "age": user.age,
         "height": float(user.height) if user.height is not None else None,
         "weight": float(user.weight) if user.weight is not None else None,
+        "weeklyTarget": user.weekly_target if user.weekly_target is not None else None,
+        "weeklyMinsDone": round(sum(
+            max(0, (s.ended_at - s.started_at).total_seconds() / 60)
+            for s in sessions.filter(ended_at__date__gte=week_start)
+            if s.ended_at and s.started_at
+        )),
         "memberSince": user.created_at.strftime("%Y-%m-%d") if getattr(user, "created_at", None) else None,
 
         "totalWorkouts": total_workouts,
@@ -3250,15 +3333,19 @@ def chart_data(request):
 
         weekly_duration = [{"day": d, "minutes": weekly_dur.get(d, 0)} for d in day_labels]
 
+        from collections import defaultdict
+        grouped = defaultdict(lambda: defaultdict(list))
         for s in sessions:
             ex = s.exercise_type
             date_str = s.ended_at.astimezone(PST).strftime("%b %d")
-            if ex not in data:
-                data[ex] = []
-            data[ex].append({
-                "date": date_str,
-                "accuracy": float(s.avg_accuracy)
-            })
+            grouped[ex][date_str].append(float(s.avg_accuracy))
+        for ex, dates in grouped.items():
+            data[ex] = []
+            for date_str, accuracies in dates.items():
+                data[ex].append({
+                    "date": date_str,
+                    "accuracy": round(sum(accuracies) / len(accuracies), 1)
+                })
 
         return JsonResponse({"chartData": data, "weeklyDuration": weekly_duration})
     except Exception as e:
@@ -3289,6 +3376,7 @@ def reviews(request):
                            u.first_name, u.last_name, u.profile_pic
                     FROM reviews r
                     JOIN users u ON r.user_id = u.id
+                    WHERE r.comment IS NOT NULL AND r.comment != ''
                     ORDER BY r.created_at DESC LIMIT 20
                 """)
                 rows = cur.fetchall()

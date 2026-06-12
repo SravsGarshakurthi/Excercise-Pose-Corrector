@@ -204,13 +204,14 @@ export default function SignUp({ onNavigate }) {
               Profile Picture 
               <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:14 }}>
                 {form.profilePic && <img src={form.profilePic} alt="preview" style={{ width:56, height:56, borderRadius:"50%", objectFit:"cover", border:"2px solid #7c3aed" }} />}
-                <input type="file" accept="image/*" onChange={e => {
+                <label htmlFor="profile-pic-input" style={{ padding:"8px 20px", borderRadius:"10px", background:"linear-gradient(135deg,#7c3aed,#06b6d4)", color:"white", fontSize:"13px", fontWeight:"600", cursor:"pointer" }}>{form.profilePic ? "Change Photo" : "Upload Photo"}</label>
+                <input type="file" accept="image/*" style={{ display:"none" }} id="profile-pic-input" onChange={e => {
                   const file = e.target.files[0];
                   if (!file) return;
                   const reader = new FileReader();
                   reader.onload = ev => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const MAX=200; const scale=Math.min(MAX/img.width,MAX/img.height,1); canvas.width=img.width*scale; canvas.height=img.height*scale; canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height); update('profilePic', canvas.toDataURL('image/jpeg',0.7)); }; img.src=ev.target.result; };
                   reader.readAsDataURL(file);
-                }} style={{ fontSize:13 }} />
+                }} />
               </div>
             </label>
           </div>

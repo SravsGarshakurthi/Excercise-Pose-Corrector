@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import useTheme from "../useTheme";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const weekDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -12,7 +12,6 @@ const EXERCISE_ICONS = {
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-  const [weeklyDuration, setWeeklyDuration] = useState([]);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", handler);
@@ -25,16 +24,18 @@ export default function ProfilePage({ onNavigate }) {
   const [age, setAge] = useState("");
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  const [weeklyTarget, setWeeklyTarget] = useState("");
   const [profileData, setProfileData] = useState(null);
   const [profilePic, setProfilePic] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saveMsg, setSaveMsg] = useState("");
   const [chartData, setChartData] = useState({});
+  const [weeklyDuration, setWeeklyDuration] = useState([]);
   const [selectedEx, setSelectedEx] = useState("");
   const isMobile = useIsMobile();
   const { theme, toggleTheme } = useTheme();
-  const [weeklyDuration, setWeeklyDuration] = useState([]);
+  const [menuOpen, setMenuOpen] = React.useState(false);
 
   const userId = localStorage.getItem("pc_demo_user_id");
   const userName = localStorage.getItem("pc_demo_username") || localStorage.getItem("pc_demo_email") || "User";
@@ -53,6 +54,20 @@ fetch(`/api/chart-data?user_id=${userId}`)
         setAge(data.age || "");
         setHeight(data.height || "");
         setWeight(data.weight || "");
+        // Check if 8 days passed since target was set
+        const targetSetDate = localStorage.getItem("pc_target_set_date");
+        const today = new Date().toISOString().slice(0,10);
+        if (targetSetDate) {
+          const daysDiff = Math.floor((new Date(today) - new Date(targetSetDate)) / (1000*60*60*24));
+          if (daysDiff >= 8) {
+            setWeeklyTarget("0");
+            localStorage.removeItem("pc_target_set_date");
+          } else {
+            setWeeklyTarget(data.weeklyTarget != null ? String(data.weeklyTarget) : "0");
+          }
+        } else {
+          setWeeklyTarget(data.weeklyTarget != null ? String(data.weeklyTarget) : "0");
+        }
         fetch(`/api/profile/pic/get?user_id=${userId}`)
           .then(r => r.json())
           .then(pd => setProfilePic(pd.profile_pic || ""))
@@ -67,11 +82,12 @@ fetch(`/api/chart-data?user_id=${userId}`)
       const r = await fetch(`/api/profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, age, height, weight })
+        body: JSON.stringify({ user_id: userId, age, height, weight, weekly_target: weeklyTarget })
       });
       const data = await r.json();
       if (data.success) {
-        setSaveMsg("Saved successfully!");
+        localStorage.setItem("pc_target_set_date", new Date().toISOString().slice(0,10));
+        setSaveMsg("Saved successfully!"); setProfileData(prev => ({ ...prev, weeklyTarget: parseInt(weeklyTarget) || 0, weeklyMinsDone: 0 }));
         setEditing(false);
         setTimeout(() => setSaveMsg(""), 2500);
       } else {
@@ -86,8 +102,8 @@ fetch(`/api/chart-data?user_id=${userId}`)
   const stats = profileData ? [
     { label: "Total Workouts", value: profileData.totalWorkouts ?? 0, icon: "🏆", color: "#6366f1" },
     { label: "Streak", value: `${profileData.streakDays ?? 0} days`, icon: "🔥", color: "#ef4444" },
-    { label: "Avg Score", value: `${profileData.avgScore ?? 0}%`, icon: "⭐", color: "#eab308" },
-    { label: "This Week", value: profileData.thisWeek ?? 0, icon: "📅", color: "#06b6d4" },
+    { label: "Weekly Target", value: (() => { const t = profileData.weeklyTarget; const done = profileData.weeklyMinsDone || 0; if (!t || t === 0) return done + " mins done"; const d = localStorage.getItem("pc_target_set_date"); const days = d ? Math.max(0, 7 - Math.floor((new Date() - new Date(d)) / (1000*60*60*24))) : 0; return done + "/" + t + " mins\n" + days + " days left"; })(), icon: "⏳", color: "#7c3aed" },
+    { label: "Sessions This Week", value: profileData.thisWeek ?? 0, icon: "CAL", color: "#06b6d4" },
   ] : [];
 
   const recentWorkouts = profileData?.recentWorkouts || [];
@@ -118,12 +134,12 @@ fetch(`/api/chart-data?user_id=${userId}`)
           <span style={{ fontWeight: "600", fontSize: "16px", color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Pose Corrector AI</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
+          {/* Desktop buttons */}
           <button type="button"
             onClick={() => onNavigate ? onNavigate("dashboard") : (window.location.hash = "dashboard")}
-            style={{ background: "none", border: "none", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: isMobile ? "6px 8px" : "7px 14px" }}
-          >← Back</button>
-          <span style={{ fontSize: "14px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)" }}>👤 {displayName}</span>
-          <button type="button" onClick={toggleTheme} className="su-theme-btn" style={{ fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "5px 10px" : "7px 14px" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
+            style={{ background: "none", border: "none", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: "7px 14px", display: isMobile ? "none" : "block" }}
+          >← Back to exercises</button>
+          <button type="button" onClick={toggleTheme} className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px", display: isMobile ? "none" : "block" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
           <button type="button"
             onClick={() => {
               localStorage.removeItem("pc_demo_email");
@@ -131,10 +147,27 @@ fetch(`/api/chart-data?user_id=${userId}`)
               localStorage.removeItem("pc_demo_user_id");
               onNavigate ? onNavigate("signin") : (window.location.hash = "signin");
             }}
-            className="su-theme-btn" style={{ fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "5px 10px" : "7px 14px" }}
+            className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px", display: isMobile ? "none" : "block" }}
           >Sign out</button>
+          {/* Mobile hamburger */}
+          <button onClick={() => setMenuOpen(true)} style={{ display: isMobile ? "flex" : "none", flexDirection:"column", justifyContent:"center", alignItems:"center", gap:"5px", background:"none", border:"none", cursor:"pointer", padding:"4px" }}>
+            <span style={{ display:"block", width:"22px", height:"2px", background: theme === "light" ? "#0f172a" : "white", borderRadius:"2px" }} />
+            <span style={{ display:"block", width:"22px", height:"2px", background: theme === "light" ? "#0f172a" : "white", borderRadius:"2px" }} />
+            <span style={{ display:"block", width:"22px", height:"2px", background: theme === "light" ? "#0f172a" : "white", borderRadius:"2px" }} />
+          </button>
         </div>
       </header>
+      {/* Mobile slide-in menu */}
+      {menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:1002 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position:"absolute", top:0, right:0, width:"220px", height:"100%", background: theme === "light" ? "white" : "#0f172a", boxShadow:"-4px 0 20px rgba(0,0,0,0.2)", padding:"24px 20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+            <button onClick={() => setMenuOpen(false)} style={{ alignSelf:"flex-end", background:"none", border:"none", fontSize:"22px", cursor:"pointer", color: theme === "light" ? "#0f172a" : "white" }}>✕</button>
+            <button onClick={() => { onNavigate ? onNavigate("dashboard") : (window.location.hash = "dashboard"); setMenuOpen(false); }} className="su-theme-btn" style={{ width:"100%", textAlign:"center" }}>← Back to exercises</button>
+            <button onClick={() => { toggleTheme(); setMenuOpen(false); }} className="su-theme-btn" style={{ width:"100%", textAlign:"center" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
+            <button onClick={() => { localStorage.removeItem("pc_demo_email"); localStorage.removeItem("pc_demo_username"); localStorage.removeItem("pc_demo_user_id"); onNavigate ? onNavigate("signin") : (window.location.hash = "signin"); }} className="su-theme-btn" style={{ width:"100%", textAlign:"center" }}>Sign Out</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "32px 40px" }}>
 
@@ -177,7 +210,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
               </div>
 
               {/* Age / Height / Weight */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 16 }}>
                 {[
                   { label: "Age",    value: age,    setter: setAge,    unit: "yrs", icon: "🎂" },
                   { label: "Height", value: height, setter: setHeight, unit: "ft",  icon: "📏" },
@@ -198,7 +231,7 @@ fetch(`/api/chart-data?user_id=${userId}`)
                           onChange={(e) => field.setter(e.target.value)}
                           style={{
                             background: "transparent", border: "none",
-                            borderBottom: "1px solid rgba(255,255,255,0.35)",
+                            borderBottom: editing ? `1px solid ${theme === "light" ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.35)"}` : "none",
                             color: theme === "light" ? "#0f172a" : "#e6f7f9", fontSize: isMobile ? 17 : 20, fontWeight: 700,
                             padding: "2px 0", outline: "none", width: isMobile ? "44px" : "60px",
                           }}
@@ -236,10 +269,39 @@ fetch(`/api/chart-data?user_id=${userId}`)
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                         <span style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>{bmi}</span>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: bmiColor }}>{bmiCategory}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#7c3aed" }}>{bmiCategory}</span>
                     </div>
                   ) : null;
                 })()}
+
+                {/* Target card */}
+                <div style={{
+                  background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.05)",
+                  border: theme === "light" ? "1px solid rgba(30,64,175,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 12,
+                  padding: isMobile ? "12px 10px" : "14px 16px",
+                  display: "flex", flexDirection: "column", gap: 6,
+                }}>
+                  <span style={{ fontSize: isMobile ? 10 : 11, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em" }}>Weekly Target</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="number" className="no-arrows"
+                      min="0"
+                      max="600"
+                      placeholder="mins"
+                      value={weeklyTarget}
+                      onChange={e => setWeeklyTarget(e.target.value)}
+                      style={{
+                        width: "100%", fontSize: isMobile ? 18 : 22, fontWeight: 700,
+                        color: theme === "light" ? "#0f172a" : "#e6f7f9",
+                        background: "transparent", border: "none", borderBottom: editing ? `1px solid ${theme === "light" ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.35)"}` : "none", outline: "none", boxSizing: "border-box",
+                        
+                      }}
+                    />
+                    <span style={{ fontSize: 13, color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.5)" }}>mins/week</span>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#7c3aed" }}>Set your goal</span>
+                </div>
               </div>
 
               {/* Edit / Save button - below stats */}
@@ -262,12 +324,12 @@ fetch(`/api/chart-data?user_id=${userId}`)
                 <div key={s.label} style={{
                   background: theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
                   border: `1px solid ${s.color}80`,
-                  borderRadius: 16, padding: "20px",
-                  display: "flex", alignItems: "center", gap: "16px",
+                  borderRadius: 16, padding: "16px 20px",
+                  display: "flex", alignItems: "center", gap: "10px",
                 }}>
-                  <span style={{ fontSize: "32px" }}>{s.icon}</span>
+                  {s.icon === "CAL" ? <img src="/calendar.png" alt="calendar" style={{ width:"28px", height:"28px", objectFit:"contain" }} /> : <span style={{ fontSize: "28px" }}>{s.icon}</span>}
                   <div>
-                    <div style={{ fontSize: "28px", fontWeight: "800", color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: s.color, lineHeight: 1.2, whiteSpace: "nowrap" }}>{s.value}</div>
                     <div style={{ fontSize: "13px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", marginTop: "2px" }}>{s.label}</div>
                   </div>
                 </div>

@@ -8,6 +8,7 @@ from .squat import SquatDetection
 from .lunge import LungeDetection
 from .tree_pose import TreePoseDetection
 from .push_up import PushUpDetection
+from .deadlift import DeadliftDetection
 from .utils import rescale_frame
 
 # Drawing helpers - Initialize lazily
@@ -39,6 +40,7 @@ def load_machine_learning_models():
         "lunge":      LungeDetection(),
         "tree_pose":  TreePoseDetection(),
         "push_up":    PushUpDetection(),
+        "deadlift":   DeadliftDetection(),
     }
 
 

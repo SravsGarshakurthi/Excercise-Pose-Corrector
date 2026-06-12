@@ -121,6 +121,26 @@ export const EXERCISES = [
       "Push through your front heel to return to standing",
     ],
   },
+  {
+    id: "deadlift",
+    name: "Deadlift",
+    short: "Back",
+    emoji: "🏋️",
+    imageUrl: `${publicUrl}/deadlift.jpeg`,
+    description: "A fundamental strength exercise that targets your entire posterior chain including back, glutes, and hamstrings.",
+    youtubeUrl: "https://youtu.be/op9kVnSso6Q",
+    difficulty: "Intermediate",
+    muscles: ["Lower Back", "Glutes", "Hamstrings", "Core"],
+    sets: "3 sets",
+    reps: "8–12 reps",
+    calories: "~10 kcal/min",
+    checklist: [
+      "Keep your back straight — no rounding at any point",
+      "Push the floor away rather than pulling the bar up",
+      "Keep the bar close to your body throughout the lift",
+      "Lock out hips and knees fully at the top",
+    ],
+  },
 ];
 
 export function getExerciseById(id) {

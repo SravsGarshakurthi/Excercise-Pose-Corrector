@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import useTheme from "../useTheme";
 import { EXERCISES } from "../data/exercises";
-import * as api from "../api";
 
 const EXERCISE_COLORS = {
   "tree-pose":  { color: "rgba(124,58,237,0.25)",  border: "rgba(124,58,237,0.4)",  shadow: "rgba(124,58,237,0.2)"  },
@@ -12,12 +11,6 @@ const EXERCISE_COLORS = {
   "lunges":     { color: "rgba(168,85,247,0.2)",   border: "rgba(168,85,247,0.4)",  shadow: "rgba(168,85,247,0.2)"  },
 };
 
-const tips = [
-  { icon: "💡", title: "Warm up first",     desc: "Spend 5 minutes warming up before any session to prevent injuries." },
-  { icon: "📸", title: "Good lighting",     desc: "Make sure your full body is visible and well-lit for best AI tracking." },
-  { icon: "👟", title: "Wear fitted clothes", desc: "Fitted clothing helps the AI detect your joints more accurately." },
-  { icon: "📏", title: "Stand back",        desc: "Keep 5–8 feet of distance from the camera for full body detection." },
-];
 
 function ReviewsSection({ theme }) {
   const [reviews, setReviews] = React.useState([]);
@@ -50,7 +43,7 @@ function ReviewsSection({ theme }) {
                 : <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "linear-gradient(135deg,#7c3aed,#06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "16px" }}>{r.name.charAt(0).toUpperCase()}</div>
               }
               <div>
-                <div style={{ fontWeight: "600", fontSize: "14px", color: theme === "light" ? "#0f172a" : "white" }}>{r.name}</div>
+                <div style={{ fontWeight: "600", fontSize: "14px", color: theme === "light" ? "#0f172a" : "white" }}>{(() => { const parts = r.name.trim().split(" "); return parts.length > 1 ? parts[0] + " " + parts[parts.length-1].charAt(0) + "." : parts[0]; })()}</div>
                 <div style={{ fontSize: "12px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>{r.exercise_type.replace(/-/g," ")}</div>
               </div>
               <div style={{ marginLeft: "auto", fontSize: "16px" }}>{"⭐".repeat(r.stars)}</div>
@@ -65,12 +58,13 @@ function ReviewsSection({ theme }) {
 
 export default function ExerciseLanding({ onNavigate }) {
   const [hovered, setHovered] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const displayName = useState(() =>
     localStorage.getItem("pc_demo_username") || localStorage.getItem("pc_demo_email") || ""
   )[0];
 
-  const [userStats, setUserStats] = useState({ total: "—", streak: "—", score: "—", lastEx: "—" });
+  const [userStats, setUserStats] = useState({ total: "—", streak: "—", score: "—", lastEx: "—", weeklyTarget: null, weeklyMinsDone: 0 });
 
   useEffect(() => {
     const userId = localStorage.getItem("pc_demo_user_id");
@@ -82,6 +76,8 @@ export default function ExerciseLanding({ onNavigate }) {
           total: data.totalWorkouts ?? "—",
           streak: data.streakDays ?? "—",
           score: data.avgScore != null ? Math.round(data.avgScore) + "%" : "—",
+          weeklyTarget: data.weeklyTarget || null,
+          weeklyMinsDone: data.weeklyMinsDone || 0,
           lastEx: data.recentWorkouts?.[0]?.exercise_type?.replace(/_/g," ") || "None",
         });
       })
@@ -99,6 +95,7 @@ export default function ExerciseLanding({ onNavigate }) {
     onNavigate(`exercise-${exercise.id}`);
   }
 
+  const isGuest = displayName === "Guest" || localStorage.getItem("pc_demo_user_id") === "0";
   const welcomeName = displayName
     ? displayName.charAt(0).toUpperCase() + displayName.slice(1)
     : "Guest";
@@ -106,12 +103,23 @@ export default function ExerciseLanding({ onNavigate }) {
 
   return (
     <div style={{
-      minHeight: "100vh", width: "100%",
+      minHeight: "100vh", width: "100vw", maxWidth: "100%", overflowX: "hidden",
       background: theme === "light" ? "linear-gradient(180deg, #dbeafe, #bfdbfe)" : "radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.1), transparent), radial-gradient(800px 400px at 90% 80%, rgba(6,182,212,0.07), transparent), linear-gradient(180deg,#0f172a,#0b3140)",
       fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
       color: theme === "light" ? "#0f172a" : "#e6f7f9", display: "flex", flexDirection: "column",
     }}>
 
+      {/* Mobile slide-in menu */}
+      {menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1002 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, right: 0, width: "220px", height: "100%", background: theme === "light" ? "white" : "#0f172a", boxShadow: "-4px 0 20px rgba(0,0,0,0.2)", padding: "24px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+            <button onClick={() => setMenuOpen(false)} style={{ alignSelf: "flex-end", background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: theme === "light" ? "#0f172a" : "white" }}>✕</button>
+            <button onClick={() => { if(!isGuest){ onNavigate("profile"); setMenuOpen(false); } }} className="su-theme-btn" style={{ width: "100%", textAlign: "center", opacity: isGuest ? 0.4 : 1, cursor: isGuest ? "not-allowed" : "pointer", filter: isGuest ? "grayscale(1)" : "none" }}>Profile</button>
+            <button onClick={() => { toggleTheme(); setMenuOpen(false); }} className="su-theme-btn" style={{ width: "100%", textAlign: "center" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
+            <button onClick={() => { if(!isGuest){ handleSignOut(); setMenuOpen(false); } }} className="su-theme-btn" style={{ width: "100%", textAlign: "center", opacity: isGuest ? 0.4 : 1, cursor: isGuest ? "not-allowed" : "pointer", filter: isGuest ? "grayscale(1)" : "none" }}>Sign Out</button>
+          </div>
+        </div>
+      )}
       {/* TOP NAV */}
       <header style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -131,24 +139,23 @@ export default function ExerciseLanding({ onNavigate }) {
           }}>PC</div>
           <span style={{ fontWeight: "600", fontSize: "16px", color: theme === "light" ? "#0f172a" : "#e6f7f9" }}>Pose Corrector AI</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <button
-            type="button"
-            onClick={() => onNavigate("profile")}
-            style={{ background: "none", border: "none", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.6)", fontSize: "14px", cursor: "pointer", padding: "7px 14px" }}
-          >Profile</button>
-          <span style={{ fontSize: "14px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.5)" }}>👤 {welcomeName}</span>
-<button onClick={toggleTheme} className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px" }}>Sign out</button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {/* Desktop nav buttons */}
+          <button type="button" onClick={() => !isGuest && onNavigate("profile")} className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px", display: window.innerWidth < 640 ? "none" : "block", opacity: isGuest ? 0.4 : 1, cursor: isGuest ? "not-allowed" : "pointer", filter: isGuest ? "grayscale(1)" : "none" }}>Profile</button>
+          <button onClick={toggleTheme} className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px", display: window.innerWidth < 640 ? "none" : "block" }}>{theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}</button>
+          <button type="button" onClick={() => !isGuest && handleSignOut()} className="su-theme-btn" style={{ fontSize: "13px", padding: "7px 14px", display: window.innerWidth < 640 ? "none" : "block", opacity: isGuest ? 0.4 : 1, cursor: isGuest ? "not-allowed" : "pointer", filter: isGuest ? "grayscale(1)" : "none" }}>Sign out</button>
+          {/* Mobile hamburger */}
+          <button onClick={() => setMenuOpen(true)} style={{ display: window.innerWidth < 640 ? "flex" : "none", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "5px", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+            <span style={{ display: "block", width: "22px", height: "2px", background: theme === "light" ? "#0f172a" : "white", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "22px", height: "2px", background: theme === "light" ? "#0f172a" : "white", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "22px", height: "2px", background: theme === "light" ? "#0f172a" : "white", borderRadius: "2px" }} />
+          </button>
         </div>
       </header>
 
       <main style={{
-        flex: 1, maxWidth: "1200px", width: "100%",
-        margin: "0 auto", padding: "clamp(20px, 4vw, 40px) clamp(16px, 4vw, 32px) 48px", boxSizing: "border-box",
+        flex: 1, maxWidth: "1200px", width: "100%", overflowX: "hidden",
+        margin: "0 auto", padding: "clamp(16px, 3vw, 40px) clamp(12px, 3vw, 32px) 48px", boxSizing: "border-box", overflowX: "hidden",
       }}>
 
         {/* HERO */}
@@ -159,7 +166,7 @@ export default function ExerciseLanding({ onNavigate }) {
             background: theme === "light" ? "none" : "linear-gradient(135deg, #e6f7f9, #bcd4d9)",
             WebkitBackgroundClip: theme === "light" ? "unset" : "text",
             WebkitTextFillColor: theme === "light" ? "#0f172a" : "transparent",
-          }}>Welcome back, {welcomeName}! 👋</h1>
+          }}>Welcome, {welcomeName}! 👋</h1>
           <p style={{ margin: 0, fontSize: "17px", color: theme === "light" ? "#475569" : "rgba(255,255,255,0.45)" }}>
             Choose an exercise below and let's get moving.
           </p>
@@ -167,14 +174,14 @@ export default function ExerciseLanding({ onNavigate }) {
 
         {/* STATS BAR */}
         <div className="landing-stats" style={{
-          display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "16px", marginBottom: "40px",
         }}>
           {[
             { icon: "🏆", label: "Total Workouts", value: userStats.total,  color: "#6366f1" },
             { icon: "🔥", label: "Day Streak",     value: userStats.streak !== "—" ? userStats.streak + " days" : "—", color: "#ef4444" },
-            { icon: "⭐", label: "Avg Accuracy",   value: userStats.score,  color: "#eab308" },
-            { icon: "📅", label: "Last Exercise",  value: userStats.lastEx, color: "#06b6d4" },
+            { icon: "⏳", label: "Weekly Target",  value: (() => { const t = userStats.weeklyTarget; const done = userStats.weeklyMinsDone; if (!t || t === 0) return done + " mins done"; const d = localStorage.getItem("pc_target_set_date"); const days = d ? Math.max(0, 7 - Math.floor((new Date() - new Date(d)) / (1000*60*60*24))) : 7; return done + " mins done"; })(), color: "#7c3aed" },
+            { icon: "CAL", label: "Last Exercise",  value: userStats.lastEx, color: "#06b6d4" },
           ].map((s, i) => (
             <div key={i} style={{
               padding: "18px 20px",
@@ -184,7 +191,7 @@ export default function ExerciseLanding({ onNavigate }) {
               boxShadow: theme === "light" ? "0 2px 12px rgba(0,0,0,0.08)" : "none",
               display: "flex", alignItems: "center", gap: "14px",
             }}>
-              <span style={{ fontSize: "26px" }}>{s.icon}</span>
+              {s.icon === "CAL" ? <img src="/calendar.png" alt="calendar" style={{ width:"30px", height:"30px", objectFit:"contain" }} /> : <span style={{ fontSize: "26px" }}>{s.icon}</span>}
               <div>
                 <div style={{ fontSize: "20px", fontWeight: "700", color: s.color }}>{s.value}</div>
                 <div style={{ fontSize: "12px", color: theme === "light" ? "#64748b" : "rgba(255,255,255,0.4)", marginTop: "2px" }}>{s.label}</div>
@@ -201,8 +208,8 @@ export default function ExerciseLanding({ onNavigate }) {
 
         {/* EXERCISE GRID */}
         <div className="landing-exercise-grid" style={{
-          display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "20px", marginBottom: "48px",
+          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          gap: "16px", marginBottom: "48px",
         }}>
           {EXERCISES.map((ex) => {
             const c = EXERCISE_COLORS[ex.id] || { color: "rgba(255,255,255,0.08)", border: "rgba(255,255,255,0.15)", shadow: "rgba(0,0,0,0.2)" };
@@ -216,6 +223,7 @@ export default function ExerciseLanding({ onNavigate }) {
                 onClick={() => handleSelect(ex)}
                 style={{
                   display: "flex", flexDirection: "column",
+                  width: "100%",
                   alignItems: "center", justifyContent: "center",
                   gap: "0px", padding: "0px", overflow: "hidden",
                   background: isHovered ? c.color : theme === "light" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.04)",
@@ -226,19 +234,21 @@ export default function ExerciseLanding({ onNavigate }) {
                   transition: "all 0.2s ease",
                   transform: isHovered ? "translateY(-4px)" : "none",
                   boxShadow: isHovered ? `0 16px 40px ${c.shadow}` : "none",
-                  height: "200px", minHeight: "unset",
+                  height: "190px", minHeight: "unset",
                 }}>
                 <img
                   src={ex.imageUrl}
                   alt={ex.name}
                   style={{
                     width: "100%",
-                    height: "200px",
-                    objectFit: "contain",
+                    height: "190px",
+                    objectFit: ex.id === "plank" ? "cover" : "contain",
                     objectPosition: "center",
                     borderRadius: "12px 12px 12px 12px",
                     display: "block",
                     backgroundColor: "white",
+                    transform: "none",
+                    transformOrigin: "center center",
                   }}
                 />
 
