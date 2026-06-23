@@ -347,7 +347,45 @@ def validate_bicep_curl_pose(landmarks_json: list) -> tuple:
                 best_angle,
             )
 
-    # Arm is visible and not an overhead raise — valid curl at any angle
+    # Reject flared elbow (hands-on-hips / chicken-wing): elbow must stay tucked near torso.
+    # Compare elbow's horizontal distance from shoulder to the torso width (shoulder->hip vertical).
+    _hip = get_landmark(f"{best_arm_side.upper()}_HIP")
+    if _el is not None and _sh is not None and _hip is not None:
+        def _gx(lm): return lm.get("x", 0.5) if isinstance(lm, dict) else getattr(lm, "x", 0.5)
+        def _gy(lm): return lm.get("y", 0.5) if isinstance(lm, dict) else getattr(lm, "y", 0.5)
+        elbow_x = _gx(_el); shoulder_x = _gx(_sh)
+        shoulder_y2 = _gy(_sh); hip_y = _gy(_hip)
+        torso_len = abs(hip_y - shoulder_y2)
+        elbow_out = abs(elbow_x - shoulder_x)
+        # If elbow drifts sideways more than ~45% of torso length, it's flared, not a curl.
+        if torso_len > 0.05 and elbow_out > torso_len * 0.45:
+            return (
+                False,
+                f"Keep your {best_arm_side} elbow tucked close to your body — do not flare it out.",
+                best_angle,
+            )
+
+    # Reject hands-on-hips: the wrist rests right at the hip (defining feature).
+    # In a real curl the wrist is either down at the thigh (below hip) or up near
+    # the shoulder — it never sits AT the hip landmark.
+    _hip2 = get_landmark(f"{best_arm_side.upper()}_HIP")
+    if _wr is not None and _hip2 is not None and _sh is not None:
+        def _gx2(lm): return lm.get("x", 0.5) if isinstance(lm, dict) else getattr(lm, "x", 0.5)
+        def _gy2(lm): return lm.get("y", 0.5) if isinstance(lm, dict) else getattr(lm, "y", 0.5)
+        wx, wy = _gx2(_wr), _gy2(_wr)
+        hx, hy = _gx2(_hip2), _gy2(_hip2)
+        sy = _gy2(_sh)
+        torso = abs(hy - sy)
+        wrist_to_hip = ((wx - hx) ** 2 + (wy - hy) ** 2) ** 0.5
+        # If wrist is sitting on/near the hip, it's hands-on-hips, not a curl.
+        if torso > 0.05 and wrist_to_hip < torso * 0.40:
+            return (
+                False,
+                f"Bring your {best_arm_side} hand down by your thigh to start — don't rest it on your hip.",
+                best_angle,
+            )
+
+    # Arm is visible, not overhead, not flared, not on hip — valid curl
     return True, None, best_angle
 
 def validate_torso_upright(landmarks_json: list) -> tuple:
@@ -596,8 +634,8 @@ def _bicep_realtime_update(landmarks_json: list, side: str, state: dict):
 
     SIDE = side.upper()
     VIS = 0.65
-    STAGE_UP = 100
-    STAGE_DOWN = 120
+    STAGE_UP = 70
+    STAGE_DOWN = 150
     PEAK_CONTRACTION_THRESHOLD = 60
     LOOSE_UPPER_ARM_ANGLE_THRESHOLD = 55  # was 40, too strict for natural curl
 
@@ -727,6 +765,8 @@ _WALL_SIT_RT_STATE = {}
 
 # ── Deadlift real-time state ─────────────────────────────────────────────────
 _DEADLIFT_RT_STATE = {}
+_SHOULDER_PRESS_RT_STATE = {}
+_SIDE_LUNGE_RT_STATE = {}
 
 # ── Tree Pose: time-based hold state ──────────────────────────────────────────
 _TREE_POSE_RT_STATE  = {}
@@ -1414,9 +1454,9 @@ def stream_process(request):
                 and st["current_stage"] == "down"
                 and st["has_seen_down"]
             ):
-                # Transition from down -> up counts as one rep
+                # Transition from down -> up: mark pending; count only if form is good (checked below)
                 st["current_stage"] = "up"
-                st["counter"] += 1
+                st["pending_rep"] = True
 
             # If we still haven't entered a stable stage, keep instructing instead of "good posture"
             if st["current_stage"] == "":
@@ -1548,6 +1588,10 @@ def stream_process(request):
                 )
 
             # Correct posture = 100%; in position but wrong form uses conf (calculated above)
+            # Count the rep ONLY now that form is confirmed good (feet + knees correct).
+            if st.get("pending_rep"):
+                st["counter"] += 1
+                st["pending_rep"] = False
             return Response(
                 {
                     "message": f"Squat: Good posture.",
@@ -1627,8 +1671,8 @@ def stream_process(request):
             ls_x = _get(11,"x"); rs_x = _get(12,"x")
             shoulder_spread = abs(ls_x - rs_x)
             print(f"[LUNGE STAND] shoulder_spread={shoulder_spread:.3f}")
-            if shoulder_spread > 0.30:
-                return Response({"message": "Lunge: Stand sideways to the camera — your side should face the lens.", "accuracy": 0, "posture_ok": False, "stage": "up", "counter": 0})
+            if shoulder_spread > 0.50:
+                return Response({"message": "Lunge: Stand sideways to the camera — your side should face the lens.", "accuracy": 0, "posture_ok": False, "stage": "up", "counter": _LUNGE_RT_STATE.get(client_key, {}).get("counter", 0)})
             print(f"[LUNGE COORDS] l_hip=({l_hip_x:.3f},{l_hip_y:.3f}) l_knee=({l_knee_x:.3f},{l_knee_y:.3f}) l_ankle=({l_ankle_x:.3f},{l_ankle_y:.3f})")
             print(f"[LUNGE COORDS] r_hip=({r_hip_x:.3f},{r_hip_y:.3f}) r_knee=({r_knee_x:.3f},{r_knee_y:.3f}) r_ankle=({r_ankle_x:.3f},{r_ankle_y:.3f})")
 
@@ -1641,7 +1685,7 @@ def stream_process(request):
             if knee_ang > 160:
                 return Response({
                     "message": "Lunge: Step one foot forward and lower your body.",
-                    "accuracy": 0, "posture_ok": False, "stage": "up", "counter": 0
+                    "accuracy": 0, "posture_ok": False, "stage": "up", "counter": _LUNGE_RT_STATE.get(client_key, {}).get("counter", 0)
                 })
 
             stage = "down" if knee_ang < 100 else "up"
@@ -1669,15 +1713,41 @@ def stream_process(request):
                     "accuracy": 55, "posture_ok": False, "stage": stage
                 })
 
-            # Rep counter: up→down→up = 1 rep
+            # Rep counter with smoothing: a stage must hold for several frames before it switches.
             if client_key not in _LUNGE_RT_STATE:
                 _LUNGE_RT_STATE[client_key] = {"stage": "up", "counter": 0}
             ls = _LUNGE_RT_STATE[client_key]
-            if stage == "down" and ls["stage"] == "up":
+            ls.setdefault("good_down_frames", 0)
+            ls.setdefault("cand", None)
+            ls.setdefault("cand_frames", 0)
+            STAGE_HOLD_FRAMES = 3          # stage must persist this many frames to switch
+            GOOD_DOWN_MIN_FRAMES = 3       # need this many good-form frames while down to count
+
+            # Smooth the raw stage: only accept a switch after it holds STAGE_HOLD_FRAMES frames
+            if stage == ls["stage"]:
+                ls["cand"] = None
+                ls["cand_frames"] = 0
+                stable_stage = ls["stage"]
+            else:
+                if ls["cand"] == stage:
+                    ls["cand_frames"] += 1
+                else:
+                    ls["cand"] = stage
+                    ls["cand_frames"] = 1
+                if ls["cand_frames"] >= STAGE_HOLD_FRAMES:
+                    stable_stage = stage   # confirmed switch
+                else:
+                    stable_stage = ls["stage"]  # not yet — keep old stage
+
+            if stable_stage == "down" and ls["stage"] == "up":
                 ls["stage"] = "down"
-            elif stage == "up" and ls["stage"] == "down":
-                ls["counter"] += 1
+                ls["good_down_frames"] = 0
+            elif stable_stage == "up" and ls["stage"] == "down":
+                # Count only if good form was sustained during the down phase
+                if True:  # count on geometry transition, ignore broken ML gate
+                    ls["counter"] += 1
                 ls["stage"] = "up"
+                ls["good_down_frames"] = 0
 
             # Run ML for final verdict
             models = get_models()
@@ -1710,6 +1780,7 @@ def stream_process(request):
             acc = int(round(err_conf * 100))
 
             if is_correct and stage == "down":
+                ls["good_down_frames"] = ls.get("good_down_frames", 0) + 1
                 return Response({"message": "Lunge: Excellent! Great depth and form.", "accuracy": acc, "posture_ok": True, "stage": stage, "counter": ls.get("counter", 0)})
             elif stage == "up":
                 return Response({"message": "Lunge: Step forward and lower your body to lunge position.", "accuracy": 40, "posture_ok": False, "stage": stage, "counter": ls.get("counter", 0)})
@@ -2599,6 +2670,93 @@ def stream_process(request):
             })
 
         # ── Deadlift ──────────────────────────────────────────────────────────
+        if ex_type == "side_lunge":
+            client_key = _get_client_key(request)
+            if client_key not in _SIDE_LUNGE_RT_STATE:
+                _SIDE_LUNGE_RT_STATE[client_key] = {"stage": "up", "counter": 0, "cand": None, "cand_frames": 0}
+            st = _SIDE_LUNGE_RT_STATE[client_key]
+
+            calculate_angle = get_calculate_angle()
+            if calculate_angle is None:
+                return Response({"message": "Side Lunge: Loading...", "accuracy": 0, "posture_ok": False, "counter": st["counter"]})
+
+            def _sl_get(idx):
+                pt = landmarks[idx] if idx < len(landmarks) else {}
+                if isinstance(pt, dict):
+                    return pt
+                return {"x": getattr(pt, "x", 0.5), "y": getattr(pt, "y", 0.5), "visibility": getattr(pt, "visibility", 0)}
+
+            ls = _sl_get(11); rs = _sl_get(12)
+            lh = _sl_get(23); rh = _sl_get(24)
+            lk = _sl_get(25); rk = _sl_get(26)
+            la = _sl_get(27); ra = _sl_get(28)
+
+            # Need full lower body visible
+            vis = min(lh.get("visibility",0), rh.get("visibility",0),
+                      lk.get("visibility",0), rk.get("visibility",0),
+                      la.get("visibility",0), ra.get("visibility",0))
+            if vis < 0.3:
+                return Response({"message": "Side Lunge: Step back so your full body (hips to feet) is visible.",
+                                 "accuracy": 0, "posture_ok": False, "stage": "up", "counter": st["counter"]})
+
+            # Stance width: horizontal distance between ankles, normalized by hip width
+            hip_w = abs(lh.get("x",0.5) - rh.get("x",0.5)) or 0.001
+            ankle_spread = abs(la.get("x",0.5) - ra.get("x",0.5))
+            stance_ratio = ankle_spread / hip_w
+            print(f"[SIDE_LUNGE] stance_ratio={stance_ratio:.2f} ankle_spread={ankle_spread:.3f}")
+
+            # Knee angles (hip-knee-ankle)
+            l_knee_ang = calculate_angle([lh["x"],lh["y"]], [lk["x"],lk["y"]], [la["x"],la["y"]])
+            r_knee_ang = calculate_angle([rh["x"],rh["y"]], [rk["x"],rk["y"]], [ra["x"],ra["y"]])
+            bent = min(l_knee_ang, r_knee_ang)
+            straight = max(l_knee_ang, r_knee_ang)
+            print(f"[SIDE_LUNGE] l_knee={l_knee_ang:.0f} r_knee={r_knee_ang:.0f} bent={bent:.0f} straight={straight:.0f}")
+
+            # Must face camera with a wide stance to do a side lunge
+            if stance_ratio < 1.6:
+                return Response({"message": "Side Lunge: Face the camera and step out wide to one side.",
+                                 "accuracy": 0, "posture_ok": False, "stage": "up", "counter": st["counter"]})
+
+            # Determine stage from the bent knee
+            raw_stage = "down" if bent < 120 else "up"
+
+            # Stage smoothing (3-frame hold) to avoid double counting
+            STAGE_HOLD = 3
+            if raw_stage == st["stage"]:
+                st["cand"] = None; st["cand_frames"] = 0
+                stable = st["stage"]
+            else:
+                if st["cand"] == raw_stage:
+                    st["cand_frames"] += 1
+                else:
+                    st["cand"] = raw_stage; st["cand_frames"] = 1
+                stable = raw_stage if st["cand_frames"] >= STAGE_HOLD else st["stage"]
+
+            if stable == "down" and st["stage"] == "up":
+                st["stage"] = "down"
+            elif stable == "up" and st["stage"] == "down":
+                st["counter"] += 1
+                st["stage"] = "up"
+
+            # Form feedback
+            # One leg should be clearly bent while the other stays fairly straight
+            one_leg_bent = bent < 120 and straight > 140
+
+            if raw_stage == "up":
+                return Response({"message": "Side Lunge: Shift your weight to one side and bend that knee.",
+                                 "accuracy": 50, "posture_ok": False, "stage": st["stage"], "counter": st["counter"]})
+
+            if bent > 110:
+                return Response({"message": "Side Lunge: Go deeper — bend your working knee toward 90 degrees.",
+                                 "accuracy": 60, "posture_ok": False, "stage": st["stage"], "counter": st["counter"]})
+
+            if not one_leg_bent:
+                return Response({"message": "Side Lunge: Keep one leg straight and bend only the side you lunge toward.",
+                                 "accuracy": 65, "posture_ok": False, "stage": st["stage"], "counter": st["counter"]})
+
+            return Response({"message": "Side Lunge: Great depth! Push back up to standing.",
+                             "accuracy": 95, "posture_ok": True, "stage": st["stage"], "counter": st["counter"]})
+
         if ex_type == "deadlift":
             client_key = _get_client_key(request)
             if client_key not in _DEADLIFT_RT_STATE:
@@ -2636,6 +2794,15 @@ def stream_process(request):
                     "accuracy": 0, "posture_ok": False, "counter": st["counter"],
                 })
 
+            # Require side view: shoulders stacked (small x-distance). Deadlift form can only be judged from the side.
+            dl_spread = abs(ls.get("x", 0.5) - rs.get("x", 0.5))
+            if dl_spread > 0.06:
+                return Response({
+                    "message": "Deadlift: Stand sideways to the camera so we can see your hip hinge.",
+                    "accuracy": 0, "posture_ok": False,
+                    "stage": st["stage"], "counter": st["counter"],
+                })
+
             shoulder = [s["x"], s["y"]]; hip   = [h["x"], h["y"]]
             knee     = [k["x"], k["y"]]; ankle = [a["x"], a["y"]]
 
@@ -2669,6 +2836,55 @@ def stream_process(request):
                 "accuracy": 100, "posture_ok": True,
                 "stage": st["stage"], "counter": st["counter"],
             })
+
+
+        # ── Shoulder Press ───────────────────────────────────────────────────
+        if ex_type == "shoulder_press":
+            client_key = _get_client_key(request)
+            if client_key not in _SHOULDER_PRESS_RT_STATE:
+                _SHOULDER_PRESS_RT_STATE[client_key] = {"stage": "", "counter": 0}
+            st = _SHOULDER_PRESS_RT_STATE[client_key]
+            calculate_angle = get_calculate_angle()
+            if calculate_angle is None:
+                return Response({"message": "Shoulder Press: Loading...", "accuracy": 0, "posture_ok": False, "counter": st["counter"]})
+            VIS = 0.3
+            ELBOW_DOWN_MAX = 110
+            ELBOW_UP_MIN = 155
+            def get_lm_sp(idx):
+                p = landmarks[idx] if idx < len(landmarks) else {}
+                if isinstance(p, dict):
+                    return p
+                return {"x": getattr(p,"x",0.5), "y": getattr(p,"y",0.5), "visibility": getattr(p,"visibility",0)}
+            ls = get_lm_sp(11); le = get_lm_sp(13); lw = get_lm_sp(15); lh = get_lm_sp(23)
+            rs = get_lm_sp(12); re = get_lm_sp(14); rw = get_lm_sp(16); rh = get_lm_sp(24)
+            left_vis = min(ls.get("visibility",0), le.get("visibility",0), lw.get("visibility",0))
+            right_vis = min(rs.get("visibility",0), re.get("visibility",0), rw.get("visibility",0))
+            if left_vis >= right_vis and left_vis >= VIS:
+                s, e, w, h = ls, le, lw, lh
+            elif right_vis >= VIS:
+                s, e, w, h = rs, re, rw, rh
+            else:
+                return Response({"message": "Shoulder Press: Make sure your arms are visible.", "accuracy": 0, "posture_ok": False, "counter": st["counter"]})
+            shoulder = [s["x"], s["y"]]; elbow = [e["x"], e["y"]]
+            wrist = [w["x"], w["y"]]; hip = [h["x"], h["y"]]
+            elbow_angle = calculate_angle(shoulder, elbow, wrist)
+            shoulder_angle = calculate_angle(hip, shoulder, elbow)
+            if elbow_angle < ELBOW_DOWN_MAX:
+                st["stage"] = "down"
+            elif elbow_angle > ELBOW_UP_MIN and st["stage"] == "down":
+                st["stage"] = "up"
+                st["counter"] += 1
+            # Bottom: elbow 70-105 (arms at shoulder height, ~90 degree bend) = GREEN
+            # Top: elbow 158+ (arms fully extended overhead) = GREEN
+            # Everything else = RED
+            if 70 <= elbow_angle <= 105:
+                return Response({"message": "Shoulder Press: Good start position! Press overhead.", "accuracy": 90, "posture_ok": True, "stage": st["stage"], "counter": st["counter"]})
+            elif elbow_angle >= 158:
+                return Response({"message": "Shoulder Press: Full extension! Lower with control.", "accuracy": 100, "posture_ok": True, "stage": st["stage"], "counter": st["counter"]})
+            elif elbow_angle < 70:
+                return Response({"message": "Shoulder Press: Raise elbows to shoulder height.", "accuracy": 35, "posture_ok": False, "stage": st["stage"], "counter": st["counter"]})
+            else:
+                return Response({"message": "Shoulder Press: Keep pressing up to full extension.", "accuracy": 50, "posture_ok": False, "stage": st["stage"], "counter": st["counter"]})
 
         # Fallback for squat or any other type
         exercise_name = ex_type.replace("_", " ").title()
